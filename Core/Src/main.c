@@ -113,31 +113,31 @@ typedef enum
     color_blue
 }light_color_enum;
 
-void armshow_red(uint8_t* buff,uint32_t* dma_buff,ligntarm_name_enum num,light_color_enum color)
+void armshow(uint8_t* buff,uint32_t* dma_buff,ligntarm_name_enum num,light_color_enum color)
 {
     switch (color)
     {
     case color_red:
-        for(uint8_t i=5;i<45;i++)
+        for(uint8_t i=0;i<WS2312_LED_NUM;i++)
         {	
             Set_Pixel_Color(buff, i, 255, 0, 0);
         }
         break;
     case color_green:
-        for(uint8_t i=5;i<45;i++)
+        for(uint8_t i=0;i<WS2312_LED_NUM;i++)
         {	
             Set_Pixel_Color(buff, i, 0, 255, 0);
         }
         break;
     case color_blue:
-        for(uint8_t i=5;i<45;i++)
+        for(uint8_t i=0;i<WS2312_LED_NUM;i++)
         {	
             Set_Pixel_Color(buff, i, 0, 0, 255);
         }
         break;
     case color_off: 
     default:
-        for(uint8_t i=5;i<45;i++)
+        for(uint8_t i=0;i<WS2312_LED_NUM;i++)
         {	
             Set_Pixel_Color(buff, i, 0, 0, 0);
         }
@@ -181,6 +181,17 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
         __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, 0);
         __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_3, 0);
 		__HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_4, 0);
+    }
+    else if (htim->Instance == TIM4) {
+        // 传输完成后立即停止 DMA
+        // 停止顺序：先停通道，如果有必要可以手动把 CCR 清零
+        HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_1);
+        HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_2);
+       // HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_3);
+        // 强制清零 CCR，防止停止瞬间引脚保持高电平
+        __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, 0);
+        __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_2, 0);
+       // __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_3, 0);
     }
 }
 
@@ -235,18 +246,13 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-    //HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t*)test_buff, 10);//PC6
-	//HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, (uint32_t*)test_buff, 10);//PC8
-    //HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, (uint32_t*)test_buff, 10);//PC9
-    //HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_1, (uint32_t*)tim_pwm_dma_buff, test_num_len);//PB6
-    //HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_2, (uint32_t*)tim_pwm_dma_buff, test_num_len);//PB7
-    //HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_3, (uint32_t*)tim_pwm_dma_buff, test_num_len);//PB8
     while (1)
     {
-		HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t*)(test_buff[0]),27);//PC6
-		HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, (uint32_t*)(test_buff[1]), 27);//PC8
-        HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, (uint32_t*)(test_buff[2]), 27);//PC9
+        armshow(Pixel_Buff,(uint32_t *)tim_pwm_dma_buff,main_arm_outside,color_red);
+        armshow(Pixel_Buff,(uint32_t *)tim_pwm_dma_buff,main_arm_middle,color_green);  
+        armshow(Pixel_Buff,(uint32_t *)tim_pwm_dma_buff,main_arm_inside,color_blue);
+        armshow(Pixel_Buff,(uint32_t *)tim_pwm_dma_buff,sub_arm_left,color_red);
+        armshow(Pixel_Buff,(uint32_t *)tim_pwm_dma_buff,sub_arm_right,color_green);
         HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_7);
         HAL_Delay(WS2812_delay);
     /* USER CODE END WHILE */
