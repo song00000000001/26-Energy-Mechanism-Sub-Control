@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F103xE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include</IncludePath>
+              <IncludePath>../Core/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;..\USP</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -726,6 +726,46 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>usp/services</GroupName>
+          <Files>
+            <File>
+              <FileName>usp_services.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\USP\usp_services.c</FilePath>
+            </File>
+            <File>
+              <FileName>robot_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\USP\robot_config.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>usp/drivers</GroupName>
+          <Files>
+            <File>
+              <FileName>bsp_ws2812.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\USP\bsp_ws2812.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_ws2812.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\USP\bsp_ws2812.h</FilePath>
+            </File>
+            <File>
+              <FileName>resistive_screen.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\USP\resistive_screen.c</FilePath>
+            </File>
+            <File>
+              <FileName>resistive_screen.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\USP\resistive_screen.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>::CMSIS</GroupName>
         </Group>
       </Groups>
@@ -744,5 +784,14 @@
     </components>
     <files/>
   </RTE>
+
+  <LayerInfo>
+    <Layers>
+      <Layer>
+        <LayName>stm32f103rct6_8Mhz</LayName>
+        <LayPrjMark>1</LayPrjMark>
+      </Layer>
+    </Layers>
+  </LayerInfo>
 
 </Project>
