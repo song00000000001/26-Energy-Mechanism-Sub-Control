@@ -54,7 +54,10 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 //30 + Num * 3 * 8 + 30
 #define WS2312_LED_NUM 1
-#define test_num_len (WS2312_LED_NUM * 3 * 8 + 3)
+#define PWM_DATA_LEN (WS2312_LED_NUM * 24)
+// 定义重置周期数（800KHz 下，1.25us/bit，40个0约 50us）
+#define WS2812_RESET_LEN 40 
+#define test_num_len (PWM_DATA_LEN + WS2812_RESET_LEN)
 
 #define WS2312_0bit 29
 #define WS2312_1bit 50
@@ -73,22 +76,36 @@ void SystemClock_Config(void);
 uint16_t tim_pwm_dma_buff[5][test_num_len] = {0};//PWM DMA数据缓存
 uint8_t Pixel_Buff[WS2312_LED_NUM * 3] = {0};//RGB数据缓存
 
-void Set_Pixel_Color(uint8_t* buff,uint32_t index,uint8_t R,uint8_t G,uint8_t B)
+void Set_Pixel_Color(uint8_t* rgb_buff,uint32_t index,uint8_t R,uint8_t G,uint8_t B)
 {
-	buff[(index)*3] = G;
-	buff[(index)*3 + 1] = R;
-	buff[(index)*3 + 2] = B;
+	rgb_buff[(index)*3] = G;
+	rgb_buff[(index)*3 + 1] = R;
+	rgb_buff[(index)*3 + 2] = B;
 }
 
-void Buff_translate(uint8_t* buff,uint16_t* dma_buff) //颜色数组转换为码元数组
-{
+void Buff_translate(uint8_t* color_buff,uint16_t* dma_row_ptr) //颜色数组转换为码元数组
+{   
+    uint32_t dat_idx = 0;
 	for(uint32_t i = 0;i < (WS2312_LED_NUM*3);i++)
 	{
-		for(uint8_t k = 0;k < 8;k++)
+        #if 0
+		for(uint8_t k = 0;k < 8;k++)// LSB First: 低位先发
 		{
-			if ( (buff[i] >> k) & 1)dma_buff[30 + (i * 8) + k] = WS2312_1bit;
-            else dma_buff[(i * 8) + k] = WS2312_0bit;
+			if ( (color_buff[i] >> k) & 1)
+                dma_row_ptr[30 + (i * 8) + k] = WS2312_1bit;
+            else 
+                color_buff[(i * 8) + k] = WS2312_0bit;
 		}
+        #else
+        for(int8_t k = 7; k >= 0; k--) // MSB First: 高位先发
+        {
+            if ((color_buff[i] >> k) & 0x01) {
+                dma_row_ptr[dat_idx++] = WS2312_1bit; // 50
+            } else {
+                dma_row_ptr[dat_idx++] = WS2312_0bit; // 29
+            }
+        }
+        #endif
 	}
 }
 /*灯臂
@@ -113,58 +130,56 @@ typedef enum
     color_blue
 }light_color_enum;
 
-void armshow(uint8_t* buff,uint32_t* dma_buff,ligntarm_name_enum num,light_color_enum color)
+void armshow(uint8_t* rgb_buff,ligntarm_name_enum num,light_color_enum color)
 {
+    // 1. 根据颜色枚举填充 RGB 缓存
     switch (color)
     {
     case color_red:
         for(uint8_t i=0;i<WS2312_LED_NUM;i++)
         {	
-            Set_Pixel_Color(buff, i, 255, 0, 0);
+            Set_Pixel_Color(rgb_buff, i, 255, 0, 0);
         }
         break;
     case color_green:
         for(uint8_t i=0;i<WS2312_LED_NUM;i++)
         {	
-            Set_Pixel_Color(buff, i, 0, 255, 0);
+            Set_Pixel_Color(rgb_buff, i, 0, 255, 0);
         }
         break;
     case color_blue:
         for(uint8_t i=0;i<WS2312_LED_NUM;i++)
         {	
-            Set_Pixel_Color(buff, i, 0, 0, 255);
+            Set_Pixel_Color(rgb_buff, i, 0, 0, 255);
         }
         break;
     case color_off: 
     default:
         for(uint8_t i=0;i<WS2312_LED_NUM;i++)
         {	
-            Set_Pixel_Color(buff, i, 0, 0, 0);
+            Set_Pixel_Color(rgb_buff, i, 0, 0, 0);
         }
         break;
     }
 
-    Buff_translate(buff,(uint16_t *) dma_buff[num]);
-    switch (num)
-    {
-    case main_arm_outside:
-        HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)dma_buff[num], test_num_len);
-        break;
-    case main_arm_middle:
-        HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)dma_buff[num],test_num_len);
-        break;
-    case main_arm_inside:
-        HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_3, (uint32_t *)dma_buff[num], test_num_len);
-        break;
-    case sub_arm_left:
-        HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)dma_buff[num], test_num_len);
-        break;
-    case sub_arm_right:
-        HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_5, (uint32_t *)dma_buff[num], test_num_len);
-        break;
-    default:
-        break;
-    }
+    // 2. 获取当前要操作的行地址
+    uint16_t* target_row = tim_pwm_dma_buff[num];
+    
+    // 3. 转换数据
+    Buff_translate(rgb_buff, target_row);
+
+    // 4. 启动 DMA 传输
+    // 直接传递 target_row 指针并强转，避免了 2D 数组偏移计算错误
+    TIM_HandleTypeDef* htim = (num < 3) ? &htim3 : &htim4;
+    uint32_t channel;
+    // 简单的通道映射映射逻辑
+    if(num == main_arm_outside) channel = TIM_CHANNEL_1;
+    else if(num == main_arm_middle) channel = TIM_CHANNEL_3;
+    else if(num == main_arm_inside) channel = TIM_CHANNEL_4;
+    else if(num == sub_arm_left)    channel = TIM_CHANNEL_1; // TIM4
+    else                            channel = TIM_CHANNEL_2; // TIM4
+
+    HAL_TIM_PWM_Start_DMA(htim, channel, (uint32_t *)target_row, test_num_len);
 }
 
 // DMA 完成回调函数
@@ -248,11 +263,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
     while (1)
     {
-        armshow(Pixel_Buff,(uint32_t *)tim_pwm_dma_buff,main_arm_outside,color_red);
-        armshow(Pixel_Buff,(uint32_t *)tim_pwm_dma_buff,main_arm_middle,color_green);  
-        armshow(Pixel_Buff,(uint32_t *)tim_pwm_dma_buff,main_arm_inside,color_blue);
-        armshow(Pixel_Buff,(uint32_t *)tim_pwm_dma_buff,sub_arm_left,color_red);
-        armshow(Pixel_Buff,(uint32_t *)tim_pwm_dma_buff,sub_arm_right,color_green);
+        armshow(Pixel_Buff,main_arm_outside,color_red);
+        armshow(Pixel_Buff,main_arm_middle,color_green);  
+        armshow(Pixel_Buff,main_arm_inside,color_blue);
+        armshow(Pixel_Buff,sub_arm_left,color_red);
+        armshow(Pixel_Buff,sub_arm_right,color_green);
         HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_7);
         HAL_Delay(WS2812_delay);
     /* USER CODE END WHILE */
