@@ -46,15 +46,6 @@ void Buff_translate(uint8_t* color_buff,uint16_t* dma_row_ptr) //颜色数组转
     uint32_t dat_idx = 0;
 	for(uint32_t i = 0;i < (WS2312_LED_NUM*3);i++)
 	{
-        #if 0
-		for(uint8_t k = 0;k < 8;k++)// LSB First: 低位先发
-		{
-			if ( (color_buff[i] >> k) & 1)
-                dma_row_ptr[30 + (i * 8) + k] = WS2312_1bit;
-            else 
-                color_buff[(i * 8) + k] = WS2312_0bit;
-		}
-        #else
         for(int8_t k = 7; k >= 0; k--) // MSB First: 高位先发
         {
             if ((color_buff[i] >> k) & 0x01) {
@@ -63,13 +54,12 @@ void Buff_translate(uint8_t* color_buff,uint16_t* dma_row_ptr) //颜色数组转
                 dma_row_ptr[dat_idx++] = WS2312_0bit; // 29
             }
         }
-        #endif
 	}
 }
 
 //上色函数，目前只有红蓝纯色，但是在两个颜色下，点亮的位置不同，图案也不同
 //全部上同色
-static void lightarm_show(void)
+static void light_all(void)
 {
     for(uint8_t i=0;i<WS2312_LED_NUM;i++)
     {	
@@ -80,7 +70,26 @@ static void lightarm_show(void)
 void armshow(ligntarm_name_enum num)
 {
     // 1. 根据颜色枚举填充 RGB 缓存
-    lightarm_show();
+    switch (num)
+    {
+    case main_arm_outside:
+        light_all();
+        break;
+    case main_arm_middle:
+        light_all();
+        break;
+    case main_arm_inside:
+        light_all();
+        break;
+    case sub_arm_left:
+        light_all();
+        break;
+    case sub_arm_right:
+        light_all();
+        break;
+    default:
+        return;
+    }
     // 2. 获取当前要操作的行地址
     uint16_t* target_row = tim_pwm_dma_buff[num];
     
@@ -106,6 +115,21 @@ void armshow(ligntarm_name_enum num)
     目前为了简化代码逻辑，使用了阻塞延时
     */
     HAL_Delay(WS2812_delay);
+}
+
+void arm_show_all(void)
+{
+    #if 0
+    for (ligntarm_name_enum arm = main_arm_outside; arm <= sub_arm_right; arm++) {
+        armshow(arm);
+    }
+    #else
+    armshow(main_arm_outside);
+    armshow(main_arm_middle);  
+    armshow(main_arm_inside);
+    armshow(sub_arm_left);
+    armshow(sub_arm_right);
+    #endif
 }
 
 // DMA 完成回调函数

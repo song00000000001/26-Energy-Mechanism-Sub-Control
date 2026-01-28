@@ -10,3 +10,4 @@
 extern light_color_enum global_color;
 
 
+void main_task(void);

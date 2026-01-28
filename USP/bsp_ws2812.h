@@ -22,3 +22,4 @@ typedef enum
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim);	//DMA回调函数
 void armshow(ligntarm_name_enum num);
+void arm_show_all(void);

@@ -103,13 +103,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
     while (1)
     {
-        armshow(main_arm_outside);
-        armshow(main_arm_middle);  
-        armshow(main_arm_inside);
-        armshow(sub_arm_left);
-        armshow(sub_arm_right);
-        HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_7);
-        //HAL_Delay(WS2812_delay);
+       main_task();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
