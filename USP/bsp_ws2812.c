@@ -1,13 +1,44 @@
-#include "bsp_ws2812.h"
+#include "robot_config.h"
+//30 + Num * 3 * 8 + 30
 
-static uint16_t tim_pwm_dma_buff[5][test_num_len] = {0};//PWM DMA数据缓存
+#define PWM_DATA_LEN (WS2312_LED_NUM * 24)
+// 定义重置周期数（800KHz 下，1.25us/bit，40个0约 50us）
+#define WS2812_RESET_LEN 40 
+#define dma_data_len (PWM_DATA_LEN + WS2812_RESET_LEN)
+
+#define WS2312_0bit 29
+#define WS2312_1bit 50
+
+#define arm_tim1 &htim3
+#define arm_channel_1 TIM_CHANNEL_1
+#define arm_channel_2 TIM_CHANNEL_3
+#define arm_channel_3 TIM_CHANNEL_4
+#define arm_tim2 &htim4
+#define arm_channel_4 TIM_CHANNEL_1
+#define arm_channel_5 TIM_CHANNEL_2
+#define arm_channel_6 TIM_CHANNEL_3
+
+static uint16_t tim_pwm_dma_buff[5][dma_data_len] = {0};//PWM DMA数据缓存
 static uint8_t Pixel_Buff[WS2312_LED_NUM * 3] = {0};//RGB数据缓存
 
-void Set_Pixel_Color(uint8_t* rgb_buff,uint32_t index,uint8_t R,uint8_t G,uint8_t B)
+void Set_Pixel_Color(uint32_t index)
 {
-	rgb_buff[(index)*3] = G;
-	rgb_buff[(index)*3 + 1] = R;
-	rgb_buff[(index)*3 + 2] = B;
+    uint8_t R = 0, G = 0, B = 0;
+    switch (global_color)
+    {
+    case color_red:
+        R = 255;
+        break;
+    case color_blue:
+        B = 255;
+        break;
+    case color_off: 
+    default:
+        break;
+    }
+	Pixel_Buff[(index)*3] = G;
+	Pixel_Buff[(index)*3 + 1] = R;
+	Pixel_Buff[(index)*3 + 2] = B;
 }
 
 void Buff_translate(uint8_t* color_buff,uint16_t* dma_row_ptr) //颜色数组转换为码元数组
@@ -36,40 +67,20 @@ void Buff_translate(uint8_t* color_buff,uint16_t* dma_row_ptr) //颜色数组转
 	}
 }
 
+//上色函数，目前只有红蓝纯色，但是在两个颜色下，点亮的位置不同，图案也不同
+//全部上同色
+static void lightarm_show(void)
+{
+    for(uint8_t i=0;i<WS2312_LED_NUM;i++)
+    {	
+        Set_Pixel_Color(i);
+    }
+}
 
-
-void armshow(ligntarm_name_enum num,light_color_enum color)
+void armshow(ligntarm_name_enum num)
 {
     // 1. 根据颜色枚举填充 RGB 缓存
-    switch (color)
-    {
-    case color_red:
-        for(uint8_t i=0;i<WS2312_LED_NUM;i++)
-        {	
-            Set_Pixel_Color(Pixel_Buff, i, 255, 0, 0);
-        }
-        break;
-    case color_green:
-        for(uint8_t i=0;i<WS2312_LED_NUM;i++)
-        {	
-            Set_Pixel_Color(Pixel_Buff, i, 0, 255, 0);
-        }
-        break;
-    case color_blue:
-        for(uint8_t i=0;i<WS2312_LED_NUM;i++)
-        {	
-            Set_Pixel_Color(Pixel_Buff, i, 0, 0, 255);
-        }
-        break;
-    case color_off: 
-    default:
-        for(uint8_t i=0;i<WS2312_LED_NUM;i++)
-        {	
-            Set_Pixel_Color(Pixel_Buff, i, 0, 0, 0);
-        }
-        break;
-    }
-
+    lightarm_show();
     // 2. 获取当前要操作的行地址
     uint16_t* target_row = tim_pwm_dma_buff[num];
     
@@ -87,8 +98,14 @@ void armshow(ligntarm_name_enum num,light_color_enum color)
     else if(num == sub_arm_left)    channel = TIM_CHANNEL_1; // TIM4
     else                            channel = TIM_CHANNEL_2; // TIM4
 
-    HAL_TIM_PWM_Start_DMA(htim, channel, (uint32_t *)target_row, test_num_len);
-	HAL_Delay(WS2812_delay);
+    HAL_TIM_PWM_Start_DMA(htim, channel, (uint32_t *)target_row, dma_data_len);
+	
+    /*todo
+    song
+    这里的延时后续优化为非阻塞方式，比如使用定时器中断或者状态机
+    目前为了简化代码逻辑，使用了阻塞延时
+    */
+    HAL_Delay(WS2812_delay);
 }
 
 // DMA 完成回调函数
