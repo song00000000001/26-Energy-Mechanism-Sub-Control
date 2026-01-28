@@ -163,6 +163,9 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 		__HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_3, 0);
     }
 }         
+/* --- 箭头显示优化配置 --- */
+uint8_t ARROW_STEP_LEN = 2;   // 箭头每一级的灯珠数量（控制箭头大小，值越大箭头越粗）
+uint8_t ARROW_GAP      = 3;   // 两个箭头之间的空隙灯珠数（控制间距）,必须是3的倍数,不然会乱。
 
 /**
  * @brief 核心图案生成与发送任务 (静态箭头)
@@ -181,40 +184,51 @@ void WS2812_Update_Task(void)
     // 3. 为5个DMA通道分别准备数据
     for (int arm_idx = 0; arm_idx < 5; arm_idx++) 
     {
-        uint8_t temp_pixels[WS2312_LED_NUM * 3] = {0}; // 临时存放该通道的RGB数据
+        uint8_t temp_pixels[WS2312_LED_NUM * 3] = {0};
 
         for (int i = 0; i < WS2312_LED_NUM; i++) 
         {
-            // 只有在激活范围内的灯珠才可能亮起
             if (i < active_limit) 
             {
                 int is_pixel_on = 0;
 
                 if (arm_idx >= sub_arm_left) {
-                    // --- 副灯臂 (左/右) ---
-                    // 只要在激活范围内，全部点亮（矩形效果）
-                    is_pixel_on = 1;
+                    is_pixel_on = 1; // 副灯臂保持全亮
                 } 
                 else {
-                    // --- 主灯臂 (1-5灯条) ---
-                    // 这里利用 i % 3 的余数来实现物理上的箭头形状：
-                    // 排数 (i+1): 1, 4, 7... (i%3==0) -> 亮最外侧(PWM1/outside)
-                    // 排数 (i+1): 2, 5, 8... (i%3==1) -> 亮两侧(PWM2/middle)
-                    // 排数 (i+1): 3, 6, 9... (i%3==2) -> 亮中心(PWM3/inside)
-                    if (arm_idx == main_arm_outside && (i % 3 == 0)) is_pixel_on = 1;
-                    else if (arm_idx == main_arm_middle  && (i % 3 == 1)) is_pixel_on = 1;
-                    else if (arm_idx == main_arm_inside  && (i % 3 == 2)) is_pixel_on = 1;
+                    // --- 主灯臂箭头逻辑优化 ---
+                    uint16_t arrow_period = (3 * ARROW_STEP_LEN + ARROW_GAP); // 一个完整的箭头+间距周期
+                    int local_pos = i % arrow_period;
+
+                    // 修正方向逻辑：
+                    // 原逻辑中 Outside 在低索引(i%3==0)，Inside 在高索引(i%3==2)，导致箭头向外。
+                    // 现将 Inside (尖端) 放在低索引区间，Outside (两翼) 放在高索引区间，使箭头指向根部。
+                    // 如果需要再次反向，只需对调 inside 和 outside 的判断条件。
+                    if (arm_idx == main_arm_inside) { 
+                        // 箭头尖端
+                        if (local_pos >= 0 && local_pos < ARROW_STEP_LEN) 
+                            is_pixel_on = 1;
+                    } 
+                    else if (arm_idx == main_arm_middle) {
+                        // 箭头中间层
+                        if (local_pos >= ARROW_STEP_LEN && local_pos < 2 * ARROW_STEP_LEN) 
+                            is_pixel_on = 1;
+                    } 
+                    else if (arm_idx == main_arm_outside) {
+                        // 箭头两翼/尾部
+                        if (local_pos >= 2 * ARROW_STEP_LEN && local_pos < 3 * ARROW_STEP_LEN) 
+                            is_pixel_on = 1;
+                    }
+                    // 其余 local_pos 落在 ARROW_GAP 区间，is_pixel_on 保持 0，形成间距
                 }
 
                 if (is_pixel_on) {
-                    temp_pixels[i * 3]     = g; // WS2812 协议是 GRB
+                    temp_pixels[i * 3]     = g; // GRB 顺序
                     temp_pixels[i * 3 + 1] = r;
                     temp_pixels[i * 3 + 2] = b;
                 }
             }
         }
-        
-        // 4. 将生成的该通道RGB数组转换为DMA所需的PWM占空比数据
         Buff_translate(temp_pixels, tim_pwm_dma_buff[arm_idx]);
     }
 
