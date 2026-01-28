@@ -35,6 +35,8 @@ void Set_Pixel_Color(uint32_t index)
         B = 255;
         break;
     case color_off: 
+        R=0; B=0; G=0;
+        break;
     default:
         break;
     }
@@ -172,7 +174,7 @@ void WS2812_Update_Task(void)
     uint8_t r = 0, g = 0, b = 0;
     if (global_color == color_red) r = 255;
     else if (global_color == color_blue) b = 255;
-
+    else { r = 0; g = 0; b = 0; } // color_off
     // 2. 计算当前允许亮起的灯珠上限 (1~5组, 每组9颗)
     uint8_t active_limit = g_active_groups * LEDS_PER_STAGE;
 
@@ -218,11 +220,12 @@ void WS2812_Update_Task(void)
 
     // 5. 统一非阻塞启动 5 路 DMA
     // TIM3 负责主灯臂
-    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);
-    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);
-    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);
-    
+    // 启动 DMA 传输 (TIM3 和 TIM4)
+    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);// 主灯臂外侧,PC6
+    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);// 主灯臂中间,PC8
+    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);// 主灯臂内侧,PC9
+  
     // TIM4 负责左右灯臂
-    HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_1, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);
-    HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_2, (uint32_t *)tim_pwm_dma_buff[4], dma_data_len);
+    HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_1, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);// 副灯臂左侧,PB6
+    HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_2, (uint32_t *)tim_pwm_dma_buff[4], dma_data_len);// 副灯臂右侧,PB7
 }

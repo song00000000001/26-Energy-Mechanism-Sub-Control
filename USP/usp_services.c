@@ -1,7 +1,7 @@
 #include "robot_config.h"
 
 uint8_t g_active_groups = 0; // 激活组数 0~5
-light_color_enum global_color = color_off;
+light_color_enum global_color = color_red;
 
 uint16_t g_led_ctrl_mask=0; // 击打指示灯掩码
 
@@ -87,42 +87,8 @@ void System_Tasks_Run(void) {
     if(now - sys_tick_last > 2000)
     {
         sys_tick_last = now;
-        if(global_color == color_off)
-            global_color = color_red;
-        else if(global_color == color_red)
-            global_color = color_blue;
-        else
-            global_color = color_off;
         g_active_groups++;
         if(g_active_groups > MAIN_ARM_STAGES)
             g_active_groups = 0;
     }
-}
-
-// 主任务函数.测试用
-void main_task(void)
-{
-    static uint32_t sys_tick_last = 0;
-    uint32_t sys_tick_now = HAL_GetTick();
-	#if 0
-    arm_show_all();
-	#else
-	WS2812_Update_Task();
-    HAL_Delay(WS2812_delay);
-	#endif
-    HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_7);
-    if(sys_tick_now - sys_tick_last > 2000)
-    {
-        sys_tick_last = sys_tick_now;
-        if(global_color == color_off)
-            global_color = color_red;
-        else if(global_color == color_red)
-            global_color = color_blue;
-        else
-            global_color = color_off;
-        g_active_groups++;
-        if(g_active_groups > MAIN_ARM_STAGES)
-            g_active_groups = 0;
-    }
-
 }
