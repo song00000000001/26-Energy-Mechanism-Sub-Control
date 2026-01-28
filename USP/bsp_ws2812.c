@@ -159,3 +159,22 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 		__HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_3, 0);
     }
 }         
+
+// 增加一个偏移量参数实现流动
+void Update_Main_Arm_Buffers(uint8_t frame_offset) {
+    uint8_t active_leds = g_active_groups * 9; // 根据激活组数计算限制范围
+
+    for (uint8_t i = 0; i < WS2312_LED_NUM; i++) {
+        // 初始清理所有缓存颜色
+        // ... (省略清理逻辑)
+
+        if (i < active_leds) { // 阶段控制：只处理激活范围内的灯珠
+            uint8_t row_type = (i + frame_offset) % 3;
+            
+            // 只有当前灯珠属于该 PWM 通道对应的行类型时才上色
+            // 假设 main_arm_outside 对应 (i+off)%3 == 0
+            // main_arm_middle 对应 (i+off)%3 == 1
+            // main_arm_inside 对应 (i+off)%3 == 2
+        }
+    }
+}

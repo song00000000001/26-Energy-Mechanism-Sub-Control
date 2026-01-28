@@ -103,7 +103,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
     while (1)
     {
-       main_task();
+       main_task(); 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

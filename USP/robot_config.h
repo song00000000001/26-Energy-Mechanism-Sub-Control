@@ -4,10 +4,56 @@
 #include "bsp_ws2812.h"
 #include "resistive_screen.h"
 
-#define WS2312_LED_NUM 45
-#define WS2812_delay 15
+/* --- 机器人配置宏 --- */
+#define WS2312_LED_NUM 45 // 每条灯臂上的 WS2812 LED 数量
+#define WS2812_delay 15 // 每次显示完成后的延时，单位 ms
+#define LED_COUNT_PER_STRIP 45
+#define MAIN_ARM_STAGES     5
+#define ROWS_PER_STAGE      9
+#define RED_CTRL_PORT    GPIOB
+#define RED_CTRL_PIN     GPIO_PIN_0
+#define BLUE_CTRL_PORT    GPIOB
+#define BLUE_CTRL_PIN     GPIO_PIN_1
 
+/* WS2812 颜色定义 */
+typedef struct {
+uint8_t r;
+uint8_t g;
+uint8_t b;
+} Color_t;
+
+/* --- 任务调度器结构体 --- */
+typedef struct {
+void (*task_func)(void);
+uint32_t interval;
+uint32_t last_run;
+} Task_t;
+
+// robot_config.h 建议结构
+typedef struct {
+    GPIO_TypeDef* port;
+    uint16_t pin;
+} Indicator_LED_t;
+
+
+
+/* --- 全局状态声明 --- */
 extern light_color_enum global_color;
+extern uint8_t g_active_groups; // 激活组数 0~5
+extern uint8_t g_is_blue_team;  // 1: 蓝方, 0: 红方
+extern uint16_t g_led_ctrl_mask;    // 击打指示灯掩码
+extern Indicator_LED_t Ring_LEDs[10];
+extern  uint8_t g_active_groups;
 
-
+/* --- 函数接口 --- */
 void main_task(void);
+void System_Tasks_Init(void);
+void System_Tasks_Run(void);
+void ADC_Sampling_Task(void);
+void WS2812_Update_Task(void);
+void Hit_Logic_Task(void);
+void LED_Indicator_Task(void);
+
+
+
+
