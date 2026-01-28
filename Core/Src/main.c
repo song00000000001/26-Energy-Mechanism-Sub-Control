@@ -53,11 +53,12 @@
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 //30 + Num * 3 * 8 + 30
-#define WS2312_LED_NUM 1
+#define WS2312_LED_NUM 45
 #define PWM_DATA_LEN (WS2312_LED_NUM * 24)
 // 定义重置周期数（800KHz 下，1.25us/bit，40个0约 50us）
 #define WS2812_RESET_LEN 40 
 #define test_num_len (PWM_DATA_LEN + WS2812_RESET_LEN)
+
 
 #define WS2312_0bit 29
 #define WS2312_1bit 50
@@ -180,6 +181,7 @@ void armshow(uint8_t* rgb_buff,ligntarm_name_enum num,light_color_enum color)
     else                            channel = TIM_CHANNEL_2; // TIM4
 
     HAL_TIM_PWM_Start_DMA(htim, channel, (uint32_t *)target_row, test_num_len);
+	HAL_Delay(WS2812_delay);
 }
 
 // DMA 完成回调函数
@@ -202,17 +204,13 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
         // 停止顺序：先停通道，如果有必要可以手动把 CCR 清零
         HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_1);
         HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_2);
-       // HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_3);
+		HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_3);
         // 强制清零 CCR，防止停止瞬间引脚保持高电平
         __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, 0);
         __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_2, 0);
-       // __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_3, 0);
+		__HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_3, 0);
     }
-}
-
-static uint16_t test_buff[3][27] = {{5,10,15,20,25 ,35,40,45,50,55 ,60,65,70,75,80 ,80,80,50,50,50 ,30,30,30,20,0 ,0,0}, 
-									{80,75,70,65,60 ,55,50,45,40,35 ,30,25,20,15,10 ,80,50,80,50,80 ,40,60,10,20,0 ,0,0},            
-                                    {60,29,29,29,29 ,29,29,29,29,29 ,29,44,29,10,21 ,80,50,60,40,30 ,50,60,40,20,0 ,0,0}};           
+}         
                                     
                                     
 /* USER CODE END PFP */
@@ -269,7 +267,7 @@ int main(void)
         armshow(Pixel_Buff,sub_arm_left,color_red);
         armshow(Pixel_Buff,sub_arm_right,color_green);
         HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_7);
-        HAL_Delay(WS2812_delay);
+        //HAL_Delay(WS2812_delay);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
