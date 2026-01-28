@@ -52,8 +52,120 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+//30 + Num * 3 * 8 + 30
+#define WS2312_LED_NUM 1
+#define test_num_len (WS2312_LED_NUM * 3 * 8 + 3)
+
 #define WS2312_0bit 29
 #define WS2312_1bit 50
+
+#define WS2812_delay 15
+
+#define arm_tim1 &htim3
+#define arm_channel_1 TIM_CHANNEL_1
+#define arm_channel_2 TIM_CHANNEL_3
+#define arm_channel_3 TIM_CHANNEL_4
+#define arm_tim2 &htim4
+#define arm_channel_4 TIM_CHANNEL_1
+#define arm_channel_5 TIM_CHANNEL_2
+#define arm_channel_6 TIM_CHANNEL_3
+
+uint16_t tim_pwm_dma_buff[5][test_num_len] = {0};//PWM DMA数据缓存
+uint8_t Pixel_Buff[WS2312_LED_NUM * 3] = {0};//RGB数据缓存
+
+void Set_Pixel_Color(uint8_t* buff,uint32_t index,uint8_t R,uint8_t G,uint8_t B)
+{
+	buff[(index)*3] = G;
+	buff[(index)*3 + 1] = R;
+	buff[(index)*3 + 2] = B;
+}
+
+void Buff_translate(uint8_t* buff,uint16_t* dma_buff) //颜色数组转换为码元数组
+{
+	for(uint32_t i = 0;i < (WS2312_LED_NUM*3);i++)
+	{
+		for(uint8_t k = 0;k < 8;k++)
+		{
+			if ( (buff[i] >> k) & 1)dma_buff[30 + (i * 8) + k] = WS2312_1bit;
+            else dma_buff[(i * 8) + k] = WS2312_0bit;
+		}
+	}
+}
+/*灯臂
+主灯臂有5根灯条,其中1和5并联,2和4并联,3单独一根
+分别命名为主臂_外侧,主臂_中侧,主臂_内侧
+次灯臂有左右两条；各有2根灯条，而且直接并联；命名为次臂_左，次臂_右。
+*/
+typedef enum 
+{
+    main_arm_outside = 0,
+    main_arm_middle,
+    main_arm_inside,
+    sub_arm_left,
+    sub_arm_right
+}ligntarm_name_enum;
+
+typedef enum 
+{
+    color_off = 0,
+    color_red,
+    color_green,
+    color_blue
+}light_color_enum;
+
+void armshow_red(uint8_t* buff,uint32_t* dma_buff,ligntarm_name_enum num,light_color_enum color)
+{
+    switch (color)
+    {
+    case color_red:
+        for(uint8_t i=5;i<45;i++)
+        {	
+            Set_Pixel_Color(buff, i, 255, 0, 0);
+        }
+        break;
+    case color_green:
+        for(uint8_t i=5;i<45;i++)
+        {	
+            Set_Pixel_Color(buff, i, 0, 255, 0);
+        }
+        break;
+    case color_blue:
+        for(uint8_t i=5;i<45;i++)
+        {	
+            Set_Pixel_Color(buff, i, 0, 0, 255);
+        }
+        break;
+    case color_off: 
+    default:
+        for(uint8_t i=5;i<45;i++)
+        {	
+            Set_Pixel_Color(buff, i, 0, 0, 0);
+        }
+        break;
+    }
+
+    Buff_translate(buff,(uint16_t *) dma_buff[num]);
+    switch (num)
+    {
+    case main_arm_outside:
+        HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)dma_buff[num], test_num_len);
+        break;
+    case main_arm_middle:
+        HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)dma_buff[num],test_num_len);
+        break;
+    case main_arm_inside:
+        HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_3, (uint32_t *)dma_buff[num], test_num_len);
+        break;
+    case sub_arm_left:
+        HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)dma_buff[num], test_num_len);
+        break;
+    case sub_arm_right:
+        HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_5, (uint32_t *)dma_buff[num], test_num_len);
+        break;
+    default:
+        break;
+    }
+}
 
 // DMA 完成回调函数
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
@@ -71,18 +183,12 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 		__HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_4, 0);
     }
 }
-//测试发现,dma搬数据的长度和输入的值无关,总是会搬16个数据,多余的数据是固定的不知道啥值,所以给16个测试一下
-/*
-static uint16_t test_buff[3][16] = {{WS2312_0bit,WS2312_0bit,WS2312_0bit,WS2312_0bit,WS2312_0bit,WS2312_0bit,WS2312_0bit,WS2312_0bit,
-                                    WS2312_0bit,WS2312_0bit,WS2312_0bit,WS2312_0bit,WS2312_0bit,WS2312_0bit,WS2312_0bit,WS2312_0bit},
-                                    {WS2312_1bit,WS2312_0bit,WS2312_1bit,WS2312_0bit,WS2312_1bit,WS2312_0bit,WS2312_1bit,WS2312_0bit,
-                                     WS2312_0bit,WS2312_1bit,WS2312_0bit,WS2312_1bit,WS2312_0bit,WS2312_1bit,WS2312_0bit,WS2312_1bit},
-                                    {WS2312_1bit,WS2312_1bit,WS2312_1bit,WS2312_1bit,WS2312_1bit,WS2312_1bit,WS2312_1bit,WS2312_1bit,
-                                     WS2312_1bit,WS2312_1bit,WS2312_1bit,WS2312_1bit,WS2312_1bit,WS2312_1bit,WS2312_1bit,WS2312_1bit}};
-*/
+
 static uint16_t test_buff[3][27] = {{5,10,15,20,25 ,35,40,45,50,55 ,60,65,70,75,80 ,80,80,50,50,50 ,30,30,30,20,0 ,0,0}, 
 									{80,75,70,65,60 ,55,50,45,40,35 ,30,25,20,15,10 ,80,50,80,50,80 ,40,60,10,20,0 ,0,0},            
                                     {60,29,29,29,29 ,29,29,29,29,29 ,29,44,29,10,21 ,80,50,60,40,30 ,50,60,40,20,0 ,0,0}};           
+                                    
+                                    
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -142,7 +248,7 @@ int main(void)
 		HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, (uint32_t*)(test_buff[1]), 27);//PC8
         HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, (uint32_t*)(test_buff[2]), 27);//PC9
         HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_7);
-        HAL_Delay(200);
+        HAL_Delay(WS2812_delay);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
