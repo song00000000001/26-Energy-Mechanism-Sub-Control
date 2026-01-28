@@ -86,7 +86,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+    System_Tasks_Init();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -103,7 +103,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
     while (1)
     {
-       main_task(); 
+        #if 0
+        main_task(); 
+        #else
+        System_Tasks_Run();
+        #endif
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

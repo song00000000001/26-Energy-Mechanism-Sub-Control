@@ -5,7 +5,9 @@
 #include "resistive_screen.h"
 
 /* --- 机器人配置宏 --- */
-#define WS2312_LED_NUM 45 // 每条灯臂上的 WS2812 LED 数量
+#define WS2312_LED_NUM 45   // 每条灯臂上的 WS2812 LED 数量
+#define MAIN_ARM_STAGES     5     // 主灯臂激活段数
+#define LEDS_PER_STAGE      9     // 每段包含的灯珠数 (45/5)
 #define WS2812_delay 15 // 每次显示完成后的延时，单位 ms
 #define LED_COUNT_PER_STRIP 45
 #define MAIN_ARM_STAGES     5
@@ -14,6 +16,10 @@
 #define RED_CTRL_PIN     GPIO_PIN_0
 #define BLUE_CTRL_PORT    GPIOB
 #define BLUE_CTRL_PIN     GPIO_PIN_1
+
+/* --- 10环电阻屏与指示灯配置 --- */
+#define RING_COUNT          10    // 10路ADC与10路指示灯
+#define HIT_THRESHOLD       2000  // ADC 击打判定阈值 (根据实际压力调整)
 
 /* WS2812 颜色定义 */
 typedef struct {
@@ -24,9 +30,9 @@ uint8_t b;
 
 /* --- 任务调度器结构体 --- */
 typedef struct {
-void (*task_func)(void);
-uint32_t interval;
-uint32_t last_run;
+    void (*task_func)(void);
+    uint32_t interval;   // 运行间隔 (ms)
+    uint32_t last_run;   // 上次运行时间, ms
 } Task_t;
 
 // robot_config.h 建议结构

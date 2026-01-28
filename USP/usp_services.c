@@ -32,11 +32,6 @@ void ADC_Sampling_Task(void) {
 
 }
 
-// WS2812 灯效更新逻辑
-void WS2812_Update_Task(void) {
-    arm_show_all();
-}
-
 // 击打判定逻辑
 void Hit_Logic_Task(void) {
 
@@ -79,12 +74,28 @@ void System_Tasks_Init(void) {
 }
 // 运行任务调度器
 void System_Tasks_Run(void) {
+    static uint32_t sys_tick_last = 0;
     uint32_t now = HAL_GetTick();
+
     for (int i = 0; i < sizeof(SystemTasks)/sizeof(Task_t); i++) {
         if (now - SystemTasks[i].last_run >= SystemTasks[i].interval) {
             SystemTasks[i].last_run = now;
             SystemTasks[i].task_func();
         }
+    }
+
+    if(now - sys_tick_last > 2000)
+    {
+        sys_tick_last = now;
+        if(global_color == color_off)
+            global_color = color_red;
+        else if(global_color == color_red)
+            global_color = color_blue;
+        else
+            global_color = color_off;
+        g_active_groups++;
+        if(g_active_groups > MAIN_ARM_STAGES)
+            g_active_groups = 0;
     }
 }
 
@@ -93,9 +104,14 @@ void main_task(void)
 {
     static uint32_t sys_tick_last = 0;
     uint32_t sys_tick_now = HAL_GetTick();
+	#if 0
     arm_show_all();
+	#else
+	WS2812_Update_Task();
+    HAL_Delay(WS2812_delay);
+	#endif
     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_7);
-    if(sys_tick_now - sys_tick_last > 1000)
+    if(sys_tick_now - sys_tick_last > 2000)
     {
         sys_tick_last = sys_tick_now;
         if(global_color == color_off)
@@ -104,6 +120,9 @@ void main_task(void)
             global_color = color_blue;
         else
             global_color = color_off;
+        g_active_groups++;
+        if(g_active_groups > MAIN_ARM_STAGES)
+            g_active_groups = 0;
     }
 
 }
