@@ -164,82 +164,82 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
     }
 }         
 /* --- 箭头显示优化配置 --- */
-uint8_t ARROW_STEP_LEN = 2;   // 箭头每一级的灯珠数量（控制箭头大小，值越大箭头越粗）
-uint8_t ARROW_GAP      = 3;   // 两个箭头之间的空隙灯珠数（控制间距）,必须是3的倍数,不然会乱。
+// 如果觉得箭头太小或太稀疏，可以调整这两个值
+static uint8_t ARROW_STEP_LEN=2;   // 箭头每一级的灯珠数量（控制箭头大小）
+static uint8_t ARROW_GAP=6 ;  // 两个箭头之间的空隙灯珠数（控制间距）
 
-/**
- * @brief 核心图案生成与发送任务 (静态箭头)
- * 该函数适配 5 路 PWM 输出，并根据 g_active_groups 限制亮起范围
- */
+static uint16_t g_flow_offset = 1; // 全局流水偏移量
+
 void WS2812_Update_Task(void)
 {
     // 1. 获取当前的全局颜色 (GRB顺序)
     uint8_t r = 0, g = 0, b = 0;
     if (global_color == color_red) r = 255;
     else if (global_color == color_blue) b = 255;
-    else { r = 0; g = 0; b = 0; } // color_off
+    else { r = 0; g = 0; b = 0; } 
+
     // 2. 计算当前允许亮起的灯珠上限 (1~5组, 每组9颗)
     uint8_t active_limit = g_active_groups * LEDS_PER_STAGE;
 
-    // 3. 为5个DMA通道分别准备数据
+    // 3. 更新流动偏移量
+    // arrow_period 是一个完整图案的长度
+    uint16_t arrow_period = (3 * ARROW_STEP_LEN + ARROW_GAP);
+    // 每次进入任务自增偏移。如果想减慢流动速度，可以加一个分频计数器。
+    g_flow_offset = (g_flow_offset + 1) % arrow_period;
+
     for (int arm_idx = 0; arm_idx < 5; arm_idx++) 
     {
         uint8_t temp_pixels[WS2312_LED_NUM * 3] = {0};
 
         for (int i = 0; i < WS2312_LED_NUM; i++) 
         {
+            // 阶段控制：只在激活范围内计算逻辑
             if (i < active_limit) 
             {
                 int is_pixel_on = 0;
 
                 if (arm_idx >= sub_arm_left) {
-                    is_pixel_on = 1; // 副灯臂保持全亮
+                    // 副灯臂：保持全亮（矩形填充）
+                    is_pixel_on = 1; 
                 } 
                 else {
-                    // --- 主灯臂箭头逻辑优化 ---
-                    uint16_t arrow_period = (3 * ARROW_STEP_LEN + ARROW_GAP); // 一个完整的箭头+间距周期
-                    int local_pos = i % arrow_period;
+                    // 主灯臂：流水箭头逻辑
+                    // 修正后的 local_pos 计算：(i - offset) 随时间增加，会让图案向大索引方向（下移）流动
+                    // 加上 arrow_period * 10 是为了防止 i - offset 出现负数导致取模出错
+                    int local_pos = (i + arrow_period * 10 - g_flow_offset) % arrow_period;
 
-                    // 修正方向逻辑：
-                    // 原逻辑中 Outside 在低索引(i%3==0)，Inside 在高索引(i%3==2)，导致箭头向外。
-                    // 现将 Inside (尖端) 放在低索引区间，Outside (两翼) 放在高索引区间，使箭头指向根部。
-                    // 如果需要再次反向，只需对调 inside 和 outside 的判断条件。
+                    // --- 箭头指向修正逻辑 ---
+                    // 尖端在最前(Inside)，中间在后(Middle)，两翼最后(Outside) -> 形成 V 字指向下方
+                    // 如果发现指向还是反的，请互换下面的 arm_idx 判断条件
                     if (arm_idx == main_arm_inside) { 
-                        // 箭头尖端
                         if (local_pos >= 0 && local_pos < ARROW_STEP_LEN) 
                             is_pixel_on = 1;
                     } 
                     else if (arm_idx == main_arm_middle) {
-                        // 箭头中间层
                         if (local_pos >= ARROW_STEP_LEN && local_pos < 2 * ARROW_STEP_LEN) 
                             is_pixel_on = 1;
                     } 
                     else if (arm_idx == main_arm_outside) {
-                        // 箭头两翼/尾部
                         if (local_pos >= 2 * ARROW_STEP_LEN && local_pos < 3 * ARROW_STEP_LEN) 
                             is_pixel_on = 1;
                     }
-                    // 其余 local_pos 落在 ARROW_GAP 区间，is_pixel_on 保持 0，形成间距
                 }
 
                 if (is_pixel_on) {
-                    temp_pixels[i * 3]     = g; // GRB 顺序
+                    temp_pixels[i * 3]     = g; // WS2812 典型为 GRB 顺序
                     temp_pixels[i * 3 + 1] = r;
                     temp_pixels[i * 3 + 2] = b;
                 }
             }
         }
+        // 将 RGB 数据转换为 PWM 码元
         Buff_translate(temp_pixels, tim_pwm_dma_buff[arm_idx]);
     }
 
-    // 5. 统一非阻塞启动 5 路 DMA
-    // TIM3 负责主灯臂
-    // 启动 DMA 传输 (TIM3 和 TIM4)
-    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);// 主灯臂外侧,PC6
-    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);// 主灯臂中间,PC8
-    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);// 主灯臂内侧,PC9
-  
-    // TIM4 负责左右灯臂
-    HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_1, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);// 副灯臂左侧,PB6
-    HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_2, (uint32_t *)tim_pwm_dma_buff[4], dma_data_len);// 副灯臂右侧,PB7
+    // 4. 非阻塞启动 5 路 DMA 传输
+    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);
+    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);
+    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);
+    HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_1, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);
+    HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_2, (uint32_t *)tim_pwm_dma_buff[4], dma_data_len);
 }
