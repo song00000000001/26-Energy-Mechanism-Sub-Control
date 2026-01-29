@@ -1,5 +1,4 @@
 #include "resistive_screen.h"
-#include "adc.h"
 #include "robot_config.h"
 
 uint16_t g_adc_raw[10]; // DMA 自动填充的原始数据
@@ -8,10 +7,6 @@ uint16_t g_hit_counters[10] = {0}; // 击打确认计数器
 #define HIT_CONFIRM_COUNT 5        // 连续5次采样超过阈值则认为击打
 uint16_t HIT_THRESHOLD=2000;  // ADC 击打判定阈值 (根据实际压力调整)
 
-void ADC_System_Start(void) {
-    // 启动 ADC DMA 循环采样
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)g_adc_raw, 10);
-}
 
 // 击打判定逻辑 (100Hz 运行，即 10ms 检查一次)
 void Hit_Logic_Task(void) {
