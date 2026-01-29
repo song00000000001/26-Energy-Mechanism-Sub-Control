@@ -19,7 +19,7 @@
 
 /* --- 10环电阻屏与指示灯配置 --- */
 #define RING_COUNT          10    // 10路ADC与10路指示灯
-#define HIT_THRESHOLD       2000  // ADC 击打判定阈值 (根据实际压力调整)
+extern uint16_t HIT_THRESHOLD;  // ADC 击打判定阈值 (根据实际压力调整)
 
 /* WS2812 颜色定义 */
 typedef struct {
@@ -52,12 +52,8 @@ extern Indicator_LED_t Ring_LEDs[10];
 extern  uint8_t g_active_groups;
 
 /* --- 函数接口 --- */
-void main_task(void);
 void System_Tasks_Init(void);
 void System_Tasks_Run(void);
-void ADC_Sampling_Task(void);
-void WS2812_Update_Task(void);
-void Hit_Logic_Task(void);
 void LED_Indicator_Task(void);
 
 

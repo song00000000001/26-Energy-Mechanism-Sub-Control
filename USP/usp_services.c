@@ -32,10 +32,6 @@ void ADC_Sampling_Task(void) {
 
 }
 
-// 击打判定逻辑
-void Hit_Logic_Task(void) {
-
-}
 
 // 指示灯更新逻辑
 void LED_Indicator_Task(void) {
@@ -71,6 +67,7 @@ void System_Tasks_Init(void) {
     for (int i = 0; i < sizeof(SystemTasks)/sizeof(Task_t); i++) {
         SystemTasks[i].last_run = HAL_GetTick();
     }
+    ADC_System_Start();
 }
 // 运行任务调度器
 void System_Tasks_Run(void) {
