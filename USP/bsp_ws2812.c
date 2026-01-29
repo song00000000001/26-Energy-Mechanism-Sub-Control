@@ -15,9 +15,8 @@
 #define arm_channel_2 TIM_CHANNEL_3
 #define arm_channel_3 TIM_CHANNEL_4
 #define arm_tim2 &htim4
-#define arm_channel_4 TIM_CHANNEL_1
-#define arm_channel_5 TIM_CHANNEL_2
-#define arm_channel_6 TIM_CHANNEL_3
+#define arm_channel_4 TIM_CHANNEL_2
+#define arm_channel_5 TIM_CHANNEL_3
 
 // 5路PWM DMA数据缓存: [0,1,2]主灯臂, [3]左灯臂, [4]右灯臂
 static uint16_t tim_pwm_dma_buff[5][dma_data_len] = {0};//PWM DMA数据缓存
@@ -237,9 +236,9 @@ void WS2812_Update_Task(void)
     }
 
     // 4. 非阻塞启动 5 路 DMA 传输
-    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);
-    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_3, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);
-    HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);
-    HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_1, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);
-    HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_2, (uint32_t *)tim_pwm_dma_buff[4], dma_data_len);
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);
+    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);
+    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_5, (uint32_t *)tim_pwm_dma_buff[4], dma_data_len);
 }
