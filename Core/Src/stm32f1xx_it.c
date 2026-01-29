@@ -58,9 +58,9 @@
 extern DMA_HandleTypeDef hdma_tim3_ch1_trig;
 extern DMA_HandleTypeDef hdma_tim3_ch3;
 extern DMA_HandleTypeDef hdma_tim3_ch4_up;
-extern DMA_HandleTypeDef hdma_tim4_ch1;
 extern DMA_HandleTypeDef hdma_tim4_ch2;
 extern DMA_HandleTypeDef hdma_tim4_ch3;
+extern DMA_HandleTypeDef hdma_tim4_ch1;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim4;
 /* USER CODE BEGIN EV */

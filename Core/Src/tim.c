@@ -29,9 +29,9 @@ TIM_HandleTypeDef htim4;
 DMA_HandleTypeDef hdma_tim3_ch1_trig;
 DMA_HandleTypeDef hdma_tim3_ch3;
 DMA_HandleTypeDef hdma_tim3_ch4_up;
-DMA_HandleTypeDef hdma_tim4_ch1;
 DMA_HandleTypeDef hdma_tim4_ch2;
 DMA_HandleTypeDef hdma_tim4_ch3;
+DMA_HandleTypeDef hdma_tim4_ch1;
 
 /* TIM3 init function */
 void MX_TIM3_Init(void)
@@ -240,22 +240,6 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* tim_baseHandle)
     __HAL_RCC_TIM4_CLK_ENABLE();
 
     /* TIM4 DMA Init */
-    /* TIM4_CH1 Init */
-    hdma_tim4_ch1.Instance = DMA1_Channel1;
-    hdma_tim4_ch1.Init.Direction = DMA_MEMORY_TO_PERIPH;
-    hdma_tim4_ch1.Init.PeriphInc = DMA_PINC_DISABLE;
-    hdma_tim4_ch1.Init.MemInc = DMA_MINC_ENABLE;
-    hdma_tim4_ch1.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
-    hdma_tim4_ch1.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
-    hdma_tim4_ch1.Init.Mode = DMA_NORMAL;
-    hdma_tim4_ch1.Init.Priority = DMA_PRIORITY_LOW;
-    if (HAL_DMA_Init(&hdma_tim4_ch1) != HAL_OK)
-    {
-      Error_Handler();
-    }
-
-    __HAL_LINKDMA(tim_baseHandle,hdma[TIM_DMA_ID_CC1],hdma_tim4_ch1);
-
     /* TIM4_CH2 Init */
     hdma_tim4_ch2.Instance = DMA1_Channel4;
     hdma_tim4_ch2.Init.Direction = DMA_MEMORY_TO_PERIPH;
@@ -287,6 +271,22 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* tim_baseHandle)
     }
 
     __HAL_LINKDMA(tim_baseHandle,hdma[TIM_DMA_ID_CC3],hdma_tim4_ch3);
+
+    /* TIM4_CH1 Init */
+    hdma_tim4_ch1.Instance = DMA1_Channel1;
+    hdma_tim4_ch1.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_tim4_ch1.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_tim4_ch1.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_tim4_ch1.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
+    hdma_tim4_ch1.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
+    hdma_tim4_ch1.Init.Mode = DMA_NORMAL;
+    hdma_tim4_ch1.Init.Priority = DMA_PRIORITY_LOW;
+    if (HAL_DMA_Init(&hdma_tim4_ch1) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(tim_baseHandle,hdma[TIM_DMA_ID_CC1],hdma_tim4_ch1);
 
     /* TIM4 interrupt Init */
     HAL_NVIC_SetPriority(TIM4_IRQn, 0, 0);
@@ -334,7 +334,12 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
     PB7     ------> TIM4_CH2
     PB8     ------> TIM4_CH3
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8;
+    GPIO_InitStruct.Pin = GPIO_PIN_6;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = GPIO_PIN_7|GPIO_PIN_8;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
@@ -379,9 +384,9 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* tim_baseHandle)
     __HAL_RCC_TIM4_CLK_DISABLE();
 
     /* TIM4 DMA DeInit */
-    HAL_DMA_DeInit(tim_baseHandle->hdma[TIM_DMA_ID_CC1]);
     HAL_DMA_DeInit(tim_baseHandle->hdma[TIM_DMA_ID_CC2]);
     HAL_DMA_DeInit(tim_baseHandle->hdma[TIM_DMA_ID_CC3]);
+    HAL_DMA_DeInit(tim_baseHandle->hdma[TIM_DMA_ID_CC1]);
 
     /* TIM4 interrupt Deinit */
     HAL_NVIC_DisableIRQ(TIM4_IRQn);
