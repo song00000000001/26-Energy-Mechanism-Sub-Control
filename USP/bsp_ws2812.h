@@ -3,7 +3,6 @@
 #include "tim.h"			   
 #include "main.h"
 
-
 typedef enum 
 {
     main_arm_outside = 0,
@@ -21,5 +20,3 @@ typedef enum
 }light_color_enum;
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim);	//DMA回调函数
-void armshow(ligntarm_name_enum num);
-void arm_show_all(void);
