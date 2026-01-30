@@ -113,6 +113,10 @@ void System_Tasks_Init(void) {
     HAL_ADC_Start_DMA(&hadc1, (uint32_t*)g_adc_raw, 10);
     // 启动串口中断接收 (假设主控连接在 huart3)
     HAL_UART_Receive_IT(&huart3, rx_buffer, 4);
+
+    // can init
+    CAN_Init(&hcan, User_CAN1_RxCpltCallback);
+    CAN_Filter_Mask_Config(1, CanFilter_0 | CanFifo_0 | Can_STDID, 0x201, 0x700);
 }
 
 // 运行任务调度器
@@ -161,4 +165,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
         // 4. 重新开启中断接收，准备下一次包
         HAL_UART_Receive_IT(&huart3, rx_buffer, 4);
     }
+}
+
+
+uint8_t free_can_mailbox;
+CAN_COB CAN_TxMsg;
+
+void User_CAN1_RxCpltCallback(CAN_COB *CAN_RxCOB)
+{
+    free_can_mailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
+    /* Avoid the unused warning*/
+    UNUSED(&free_can_mailbox);
+    CANx_SendData(1, &CAN_TxMsg);
 }

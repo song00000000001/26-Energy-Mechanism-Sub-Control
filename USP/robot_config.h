@@ -5,6 +5,9 @@
 #include "resistive_screen.h"
 #include "adc.h"
 #include "usart.h"
+#include "tim.h"
+#include "can.h"
+#include "drv_can.h"
 
 /* --- 机器人配置宏 --- */
 #define sub_ctrl_id 0x01  // 分控标识位
@@ -33,6 +36,7 @@
 
 /* --- 10环电阻屏与指示灯配置 --- */
 #define RING_COUNT          10    // 10路ADC与10路指示灯
+
 extern uint16_t HIT_THRESHOLD;  // ADC 击打判定阈值 (根据实际压力调整)
 
 /* WS2812 颜色定义 */
@@ -70,6 +74,5 @@ void System_Tasks_Init(void);
 void System_Tasks_Run(void);
 void LED_Indicator_Task(void);
 void UART_Comm_Task(void);
-
 
 
