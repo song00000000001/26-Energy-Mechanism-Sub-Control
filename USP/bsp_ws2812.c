@@ -16,6 +16,7 @@
 #define arm_channel_3 TIM_CHANNEL_4
 #define arm_tim2 &htim4
 #define arm_channel_4 TIM_CHANNEL_2 //备用通道有CHAN3，也是配好的，只需要改这里
+#define arm_channel_5 TIM_CHANNEL_3 //由于不写tim_pwm_stop_dma函数考可能会进硬件错误处理，所以这里预留一个通道
 
 // 4路PWM DMA数据缓存: [0,1,2]主灯臂, [3]左右灯臂
 static uint16_t tim_pwm_dma_buff[WS2812_ARM_COUNT][dma_data_len] = {0};//PWM DMA数据缓存
@@ -58,8 +59,10 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
         // 传输完成后立即停止 DMA
         // 停止顺序：先停通道，如果有必要可以手动把 CCR 清零
         HAL_TIM_PWM_Stop_DMA(htim, arm_channel_4);
+        HAL_TIM_PWM_Stop_DMA(htim, arm_channel_5);
         // 强制清零 CCR，防止停止瞬间引脚保持高电平
         __HAL_TIM_SET_COMPARE(htim, arm_channel_4, 0);
+        __HAL_TIM_SET_COMPARE(htim, arm_channel_5, 0);
     }
 }         
 /* --- 箭头显示优化配置 --- */
