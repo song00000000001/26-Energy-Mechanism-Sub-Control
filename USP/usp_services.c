@@ -67,7 +67,7 @@ void Comm_Task(void)
         #if use_can_or_uart_comm
         // 通过 CAN 发送击打状态
         CAN_TxMsg.IdType = Can_STDID;
-        CAN_TxMsg.ID = 0x201;
+        CAN_TxMsg.ID = CAN_PACKET_HEADER+sub_ctrl_id; // 分控 ID 作为低字节
         CAN_TxMsg.DLC = 2;
         CAN_TxMsg.Data[0] = (g_led_ctrl_mask >> 8) & 0xFF; // 高字节
         CAN_TxMsg.Data[1] = g_led_ctrl_mask & 0xFF;        // 低字节
@@ -110,6 +110,7 @@ void Comm_Task(void)
         g_active_groups = CAN_RxMsg.Data[1];
     }
 }
+
 static void LED_Update(void)
 { //根据组数点亮对应指示灯，有5组，但是有10个灯，所以是间隔点亮，如果是1组，就点亮1，如果是2组，就点亮3，以此类推
     g_led_ctrl_mask=0x000; // 先全部熄灭

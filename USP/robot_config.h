@@ -12,8 +12,12 @@
 /* --- 机器人配置宏 --- */
 #define use_can_or_uart_comm 1  // 1: 使用 CAN 通信; 0: 使用 UART 通信
 #define sub_ctrl_id 0x01  // 分控标识位
-#define PACKET_HEADER 0xAA  //包头标识
-#define CAN_PACKET_HEADER 0x200  // CAN 通信包头标识
+
+#if use_can_or_uart_comm
+    #define CAN_PACKET_HEADER 0x210  // CAN 通信包头标识
+#else
+    #define PACKET_HEADER 0xAA  //包头标识
+#endif
 
 #define WS2312_LED_NUM 45   // 每条灯臂上的 WS2812 LED 数量
 #define MAIN_ARM_STAGES     5     // 主灯臂激活段数
