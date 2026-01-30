@@ -990,6 +990,31 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>srml/drivers</GroupName>
+          <Files>
+            <File>
+              <FileName>srml_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\USP\srml_config.h</FilePath>
+            </File>
+            <File>
+              <FileName>srml_std_lib.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\USP\srml_std_lib.h</FilePath>
+            </File>
+            <File>
+              <FileName>drv_can.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\USP\drv_can.c</FilePath>
+            </File>
+            <File>
+              <FileName>drv_can.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\USP\drv_can.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>::CMSIS</GroupName>
         </Group>
       </Groups>

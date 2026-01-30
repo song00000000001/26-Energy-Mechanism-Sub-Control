@@ -16,7 +16,9 @@ typedef enum
 {
     color_off = 0,
     color_red,
-    color_blue
+    color_blue,
+    color_hit_red,
+    color_hit_blue
 }light_color_enum;
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim);	//DMA回调函数
