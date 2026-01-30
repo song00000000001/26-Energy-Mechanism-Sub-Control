@@ -29,6 +29,7 @@
     #define PACKET_HEADER 0xAA  //包头标识
 #endif
 
+#define WS2812_ARM_COUNT 4     // 灯臂数量
 #define WS2312_LED_NUM 45   // 每条灯臂上的 WS2812 LED 数量
 #define MAIN_ARM_STAGES     5     // 主灯臂激活段数
 #define LEDS_PER_STAGE      9     // 每段包含的灯珠数 (45/5)

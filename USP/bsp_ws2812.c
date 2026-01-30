@@ -18,7 +18,7 @@
 #define arm_channel_4 TIM_CHANNEL_2 //备用通道有CHAN3，也是配好的，只需要改这里
 
 // 4路PWM DMA数据缓存: [0,1,2]主灯臂, [3]左右灯臂
-static uint16_t tim_pwm_dma_buff[4][dma_data_len] = {0};//PWM DMA数据缓存
+static uint16_t tim_pwm_dma_buff[WS2812_ARM_COUNT][dma_data_len] = {0};//PWM DMA数据缓存
 static uint8_t Pixel_Buff[WS2312_LED_NUM * 3] = {0};//RGB数据缓存
 
 
@@ -125,7 +125,7 @@ void WS2812_Update_Task(void)
     // 每次进入任务自增偏移。如果想减慢流动速度，可以加一个分频计数器。
     g_flow_offset = (g_flow_offset + 1) % arrow_period;
 
-    for (int arm_idx = 0; arm_idx < 5; arm_idx++) 
+    for (int arm_idx = 0; arm_idx < WS2812_ARM_COUNT; arm_idx++) 
     {
         uint8_t temp_pixels[WS2312_LED_NUM * 3] = {0};
 

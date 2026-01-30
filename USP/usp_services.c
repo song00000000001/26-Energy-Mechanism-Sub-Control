@@ -61,7 +61,7 @@ void Comm_Task(void)
     //分控的设计逻辑是不设计任何逻辑,只负责根据主控控制状态切换显示,然后一直搬移传感器数据.
     //这里的数据即便分控没有被选中，在变化后也应该给主控，好让主控判断是否打错。
     /*--- 1. 检测击打状态变化并发送击打状态数据 ---*/
-    if(last_led_ctrl_mask != g_led_ctrl_mask)
+    if(1||last_led_ctrl_mask != g_led_ctrl_mask)
     {
         last_led_ctrl_mask = g_led_ctrl_mask;
         #if use_can_or_uart_comm
@@ -127,13 +127,11 @@ void LED_Indicator_Task(void) {
     case color_red:
         LED_RED_ENABLE;
         LED_SHOW_CROSS_PATTERN;
-        g_led_ctrl_mask=0x3FF; // 全部点亮
         break;
 
     case color_blue:
         LED_BLUE_ENABLE;
         LED_SHOW_CROSS_PATTERN;
-        g_led_ctrl_mask=0x3FF; // 全部点亮
         break;
 
     case color_hit_red:
@@ -155,6 +153,13 @@ void LED_Indicator_Task(void) {
         g_led_ctrl_mask=0x000; // 全部熄灭
         break;
     }
+
+    //只有在从off切换到color_red或color_blue时，才会点亮全部指示灯
+    static light_color_enum last_color = color_off;
+    if (last_color == color_off && (global_color == color_red || global_color == color_blue)) {
+        g_led_ctrl_mask = 0x3FF; // 点亮全部指示灯
+    }
+    last_color = global_color;
 
     // 2. 更新10个环的亮灭
     for(int i=0; i<10; i++) {
