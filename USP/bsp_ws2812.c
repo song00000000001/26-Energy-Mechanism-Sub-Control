@@ -15,7 +15,7 @@
 #define arm_channel_2 TIM_CHANNEL_3
 #define arm_channel_3 TIM_CHANNEL_4
 #define arm_tim2 &htim4
-#define arm_channel_4 TIM_CHANNEL_2
+#define arm_channel_4 TIM_CHANNEL_2 //备用通道有CHAN3，也是配好的，只需要改这里
 
 // 4路PWM DMA数据缓存: [0,1,2]主灯臂, [3]左右灯臂
 static uint16_t tim_pwm_dma_buff[4][dma_data_len] = {0};//PWM DMA数据缓存

@@ -15,18 +15,31 @@ uint8_t rx_buffer[4]; // UART 接收缓冲区
 #endif
 
 
-// 10个指示环的GPIO端口和引脚配置，目前是GPIOB的4~14号引脚
+// 10个指示环的GPIO端口和引脚配置，
+
+/*更新：
+A8
+C7
+B15
+B14
+B13
+B12
+B11
+B10
+C5
+C4
+*/
 Indicator_LED_t Ring_LEDs[10] = {
-    {GPIOB, GPIO_PIN_4},
-    {GPIOB, GPIO_PIN_5},
-    {GPIOB, GPIO_PIN_6},
-    {GPIOB, GPIO_PIN_7},
-    {GPIOB, GPIO_PIN_8},
-    {GPIOB, GPIO_PIN_9},
-    {GPIOB, GPIO_PIN_10},
-    {GPIOB, GPIO_PIN_11},
+    {GPIOA, GPIO_PIN_8},
+    {GPIOC, GPIO_PIN_7},
+    {GPIOB, GPIO_PIN_15},
+    {GPIOB, GPIO_PIN_14},
+    {GPIOB, GPIO_PIN_13},
     {GPIOB, GPIO_PIN_12},
-    {GPIOB, GPIO_PIN_13}
+    {GPIOB, GPIO_PIN_11},
+    {GPIOB, GPIO_PIN_10},
+    {GPIOC, GPIO_PIN_5},
+    {GPIOC, GPIO_PIN_4}
 };
 
 // usp_services.c
