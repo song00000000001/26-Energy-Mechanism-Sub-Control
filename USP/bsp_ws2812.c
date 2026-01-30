@@ -16,10 +16,9 @@
 #define arm_channel_3 TIM_CHANNEL_4
 #define arm_tim2 &htim4
 #define arm_channel_4 TIM_CHANNEL_2
-#define arm_channel_5 TIM_CHANNEL_3
 
-// 5路PWM DMA数据缓存: [0,1,2]主灯臂, [3]左灯臂, [4]右灯臂
-static uint16_t tim_pwm_dma_buff[5][dma_data_len] = {0};//PWM DMA数据缓存
+// 4路PWM DMA数据缓存: [0,1,2]主灯臂, [3]左右灯臂
+static uint16_t tim_pwm_dma_buff[4][dma_data_len] = {0};//PWM DMA数据缓存
 static uint8_t Pixel_Buff[WS2312_LED_NUM * 3] = {0};//RGB数据缓存
 
 void Set_Pixel_Color(uint32_t index)
@@ -80,10 +79,8 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
         // 传输完成后立即停止 DMA
         // 停止顺序：先停通道，如果有必要可以手动把 CCR 清零
         HAL_TIM_PWM_Stop_DMA(htim, arm_channel_4);
-		HAL_TIM_PWM_Stop_DMA(htim, arm_channel_5);
         // 强制清零 CCR，防止停止瞬间引脚保持高电平
         __HAL_TIM_SET_COMPARE(htim, arm_channel_4, 0);
-		__HAL_TIM_SET_COMPARE(htim, arm_channel_5, 0);
     }
 }         
 /* --- 箭头显示优化配置 --- */
@@ -93,14 +90,53 @@ static uint8_t ARROW_GAP=6 ;  // 两个箭头之间的空隙灯珠数（控制�
 
 static uint16_t g_flow_offset = 1; // 全局流水偏移量
 
+//由于hit状态不需要流水灯和箭头效果，直接全部点亮即可
+void light_arm_fill_all(uint8_t r, uint8_t g, uint8_t b)
+{
+    uint8_t temp_pixels[WS2312_LED_NUM * 3] = {0};
+
+    for (int i = 0; i < WS2312_LED_NUM; i++) 
+    {
+        temp_pixels[i * 3]     = g; // WS2812 典型为 GRB 顺序
+        temp_pixels[i * 3 + 1] = r;
+        temp_pixels[i * 3 + 2] = b;
+    }
+    // 将 RGB 数据转换为 PWM 码元
+    Buff_translate(temp_pixels, tim_pwm_dma_buff[0]);
+    Buff_translate(temp_pixels, tim_pwm_dma_buff[3]);
+    // 4. 非阻塞启动 4 路 DMA 传输
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂outside
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂middle
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂inside
+    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);//左右灯臂
+}
+
 void WS2812_Update_Task(void)
 {
     // 1. 获取当前的全局颜色 (GRB顺序)
     uint8_t r = 0, g = 0, b = 0;
-    if (global_color == color_red) r = 255;
-    else if (global_color == color_blue) b = 255;
-    else { r = 0; g = 0; b = 0; } 
 
+    switch (global_color)
+    {
+    case color_red:
+        r = 255;
+        break;
+    case color_blue:
+        b = 255;
+        break;
+    case color_hit_red:
+        r = 255;
+        light_arm_fill_all(r, g, b);
+        return;
+    case color_hit_blue:
+        b = 255;
+        light_arm_fill_all(r, g, b);
+        return;
+    case color_off:
+    default:
+        r = 0; g = 0; b = 0;
+        break;
+    }
     // 2. 计算当前允许亮起的灯珠上限 (1~5组, 每组9颗)
     uint8_t active_limit = g_active_groups * LEDS_PER_STAGE;
 
@@ -160,9 +196,8 @@ void WS2812_Update_Task(void)
     }
 
     // 4. 非阻塞启动 5 路 DMA 传输
-    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);
-    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);
-    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);
-    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);
-    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_5, (uint32_t *)tim_pwm_dma_buff[4], dma_data_len);
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂outside
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);//主灯臂middle
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);//主灯臂inside
+    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);//左右灯臂
 }
