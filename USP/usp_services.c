@@ -67,7 +67,7 @@ void Comm_Task(void)
         #if use_can_or_uart_comm
         // 通过 CAN 发送击打状态
         CAN_TxMsg.IdType = Can_STDID;
-        CAN_TxMsg.ID = CAN_PACKET_HEADER+sub_ctrl_id; // 分控 ID 作为低字节
+        CAN_TxMsg.ID = CAN_SEND_ID_BASE+sub_ctrl_id; // 分控 ID 作为低字节
         CAN_TxMsg.DLC = 2;
         CAN_TxMsg.Data[0] = (g_led_ctrl_mask >> 8) & 0xFF; // 高字节
         CAN_TxMsg.Data[1] = g_led_ctrl_mask & 0xFF;        // 低字节
@@ -104,7 +104,7 @@ void Comm_Task(void)
 
     /*--- 2. 接收控制指令数据 ---*/
     // 1. 校验数据包
-    if (CAN_RxMsg.ID == CAN_PACKET_HEADER && CAN_RxMsg.DLC == 2) {
+    if (CAN_RxMsg.ID == CAN_RECEIVE_ID_BASE && CAN_RxMsg.DLC == 2) {
         // 2. 更新全局状态
         global_color = (light_color_enum)CAN_RxMsg.Data[0];
         g_active_groups = CAN_RxMsg.Data[1];
@@ -173,7 +173,7 @@ void System_Tasks_Init(void) {
     #if use_can_or_uart_comm
     // can init
     CAN_Init(&hcan, User_CAN1_RxCpltCallback);
-    CAN_Filter_Mask_Config(1, CanFilter_0 | CanFifo_0 | Can_STDID, 0x201, 0x700);
+    CAN_Filter_Mask_Config(1, CanFilter_0 | CanFifo_0 | Can_STDID,CAN_RECEIVE_ID_BASE,CAN_FILTER_ID_MASK);
     #else
     // 启动串口中断接收 (huart3)
     HAL_UART_Receive_IT(&huart3, rx_buffer, 4);

@@ -14,7 +14,17 @@
 #define sub_ctrl_id 0x01  // 分控标识位
 
 #if use_can_or_uart_comm
-    #define CAN_PACKET_HEADER 0x210  // CAN 通信包头标识
+    #define CAN_RECEIVE_ID_BASE 0x210  // CAN 接收包头标识
+    #define CAN_SEND_ID_BASE 0x220 // CAN 发送包头标识
+    #define CAN_FILTER_ID_MASK 0x7F0 // CAN 过滤器标识，需要过滤小于210，大于220的ID
+    /*
+    0x 210=33    0010 0001 00000000
+    0x 220=34    0010 0010 00000000
+    0x 7F0=2032  0111 1111 00000000    过滤器可以设置为
+
+    这样可以过滤掉低8位的ID，只接收高8位为0x21和0x22的ID
+    具体可以根据实际需求调整
+    */
 #else
     #define PACKET_HEADER 0xAA  //包头标识
 #endif

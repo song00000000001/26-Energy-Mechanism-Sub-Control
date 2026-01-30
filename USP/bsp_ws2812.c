@@ -21,27 +21,6 @@
 static uint16_t tim_pwm_dma_buff[4][dma_data_len] = {0};//PWM DMA数据缓存
 static uint8_t Pixel_Buff[WS2312_LED_NUM * 3] = {0};//RGB数据缓存
 
-void Set_Pixel_Color(uint32_t index)
-{
-    uint8_t R = 0, G = 0, B = 0;
-    switch (global_color)
-    {
-    case color_red:
-        R = 255;
-        break;
-    case color_blue:
-        B = 255;
-        break;
-    case color_off: 
-        R=0; B=0; G=0;
-        break;
-    default:
-        break;
-    }
-	Pixel_Buff[(index)*3] = G;
-	Pixel_Buff[(index)*3 + 1] = R;
-	Pixel_Buff[(index)*3 + 2] = B;
-}
 
 void Buff_translate(uint8_t* color_buff,uint16_t* dma_row_ptr) //颜色数组转换为码元数组
 {   
