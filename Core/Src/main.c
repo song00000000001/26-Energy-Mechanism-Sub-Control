@@ -19,15 +19,15 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
+#include "can.h"
 #include "dma.h"
 #include "tim.h"
+#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "bsp_ws2812.h"
 #include "robot_config.h"
-#include "resistive_screen.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -86,7 +86,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+    
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -95,15 +95,21 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM3_Init();
   MX_TIM4_Init();
+  MX_CAN_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-
+ System_Tasks_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
     while (1)
     {
-       main_task();
+        #if 0
+        main_task(); 
+        #else
+        System_Tasks_Run();
+        #endif
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
