@@ -104,7 +104,7 @@ void Comm_Task(void)
 
     /*--- 2. 接收控制指令数据 ---*/
     // 1. 校验数据包
-    if (CAN_RxMsg.ID == CAN_RECEIVE_ID_BASE && CAN_RxMsg.DLC == 2) {
+    if (CAN_RxMsg.ID == (CAN_RECEIVE_ID_BASE+sub_ctrl_id) && CAN_RxMsg.DLC == 2) {
         // 2. 更新全局状态
         global_color = (light_color_enum)CAN_RxMsg.Data[0];
         g_active_groups = CAN_RxMsg.Data[1];
