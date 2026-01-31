@@ -80,6 +80,23 @@ typedef struct {
 } Indicator_LED_t;
 
 
+typedef enum 
+{
+    color_off = 0,
+    color_red,
+    color_blue,
+    color_hit_red,
+    color_hit_blue
+}light_color_enum;
+
+typedef enum 
+{
+    main_arm_outside = 0,
+    main_arm_middle,
+    main_arm_inside,
+    sub_arm_left,
+    sub_arm_right
+}ligntarm_name_enum;
 
 /* --- 全局状态声明 --- */
 extern light_color_enum global_color;
