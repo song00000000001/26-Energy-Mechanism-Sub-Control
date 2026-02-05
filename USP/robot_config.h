@@ -135,6 +135,7 @@ typedef struct {
     light_color_enum color;
     uint8_t active_groups; // 激活组数 0~5
     uint16_t led_ctrl_mask;    // 击打指示灯掩码
+    uint16_t hit_mask;        // 击打状态掩码
     Indicator_LED_t Ring_LEDs[10];
     uint8_t is_blue_team;  // 1: 蓝方, 0: 红方
 } RobotStatus_t;
@@ -146,7 +147,6 @@ typedef enum {
     OBSERVE_COMM_TASK,
     OBSERVE_LED_TASK,
     OBSERVE_HIT_LOGIC_TASK,
-    OBSERVE_SYS_TASKS_RUN
 } ObserveTask_t;
 
 typedef struct {
@@ -173,3 +173,12 @@ void LED_Indicator_Task(void);
 void Comm_Task(void);
 
 
+/*
+调整任务优先级
+adc dma chan1 = 0; //adc1 dma搬运
+tim3/tim4 dma chan3,4,5,6 = 1; //ws2812
+tim5 it = 2; //击打计数
+uart3 rx it = 3; //uart3接收中断
+uart3 tx dma chan2 = 3; //uart3发送dma
+can1 rx/tx it= 3; //can1收发中断
+*/

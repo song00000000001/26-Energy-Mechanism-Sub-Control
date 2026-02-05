@@ -111,13 +111,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
     while (1)
     {
-        #if 0
-        main_task(); 
-        #else
-        OBSERVE_TASK_START(OBSERVE_SYS_TASKS_RUN);
         System_Tasks_Run();
-        OBSERVE_TASK_END(OBSERVE_SYS_TASKS_RUN);
-        #endif
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
