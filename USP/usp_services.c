@@ -1,32 +1,6 @@
 #include "robot_config.h"
 
-uint8_t g_active_groups = 0; // 激活组数 0~5
-light_color_enum global_color = color_red;
-
-uint16_t g_led_ctrl_mask=0; // 击打指示灯掩码
-
-/*
-typedef enum{
-    idle = 0,
-    small_energy,
-    big_energy,
-    success
-}EnergySystemMode_t;
-
-*/
-uint8_t g_energy_state = 0; // 能量状态
-
-#if use_can_or_uart_comm
-CAN_COB CAN_TxMsg;
-CAN_COB CAN_RxMsg;
-uint8_t free_can_mailbox;
-#else
-uint8_t rx_buffer[4]; // UART 接收缓冲区
-#endif
-
-
 // 10个指示环的GPIO端口和引脚配置，
-
 /*更新：
 A8
 C7
@@ -39,7 +13,8 @@ B10
 C5
 C4
 */
-Indicator_LED_t Ring_LEDs[10] = {
+RobotStatus_t robot_status={
+    .Ring_LEDs={
     {GPIOA, GPIO_PIN_8},
     {GPIOC, GPIO_PIN_7},
     {GPIOB, GPIO_PIN_15},
@@ -50,90 +25,127 @@ Indicator_LED_t Ring_LEDs[10] = {
     {GPIOB, GPIO_PIN_10},
     {GPIOC, GPIO_PIN_5},
     {GPIOC, GPIO_PIN_4}
+    }
+};
+	
+debug_status_t debug_status={OBSERVE_HIT_LOGIC_TASK};
+CommBuffers_t comm_buffers={
+    .free_can_mailbox=0,
+    .can_rx_complete=false,
+    .uart_rx_complete=false
 };
 
 // usp_services.c
 Task_t SystemTasks[] = {
-    {WS2812_Update_Task, 30, 0}, // 约33Hz 灯效刷新
-    {Hit_Logic_Task,    10, 0}, // 100Hz 击打判定
-    {LED_Indicator_Task, 100, 0}, // 10Hz 指示灯刷新
-    {Comm_Task, 100, 0}  // 10Hz 通信处理
+    {WS2812_Update_Task, 30, 0},    // 5Hz 灯效刷新
+    {LED_Indicator_Task, 100, 0},   // 5Hz 指示灯刷新
+    {Comm_Task, 20, 0}              // 20ms ,50hz通信处理
 };
 
+// 击打判定只有200us的窗口期,所以需要更高频率的检测,放在定时器5中断里执行,考虑放到adc搬运dma完成回调里执行
+
+//通信处理,改为最终总结击打状态，并发送出去,而击打判定只负责增加击打计数
+/* 
+通信处理逻辑
+发送击打状态数据
+接收控制指令数据
+判断击打状态变化
+*/
+//分控的设计逻辑是不设计任何逻辑,只负责根据主控控制状态切换显示,然后一直搬移传感器数据.
+//这里的数据即便分控没有被选中，在变化后也应该给主控，好让主控判断是否打错。
 void Comm_Task(void)
 {
-    // 通信处理逻辑
-    // 发送击打状态数据
-    // 接收控制指令数据
-	// 检测击打状态变化
-	static uint16_t last_led_ctrl_mask = 0;        
-	
-    //分控的设计逻辑是不设计任何逻辑,只负责根据主控控制状态切换显示,然后一直搬移传感器数据.
-    //这里的数据即便分控没有被选中，在变化后也应该给主控，好让主控判断是否打错。
-    /*--- 1. 检测击打状态变化并发送击打状态数据 ---*/
-    if(1||last_led_ctrl_mask != g_led_ctrl_mask)
+    OBSERVE_TASK_START(OBSERVE_COMM_TASK);
+
+    /*--- 1. 判断击打状态变化---*/
+    for(int i = 0; i < 10; i++) {
+        // 如果连续多帧超过阈值，认为该环被击中
+        if (adc_buffers.hit_counters[i] >= adc_buffers.HIT_CONFIRM_COUNT) {
+            // 灭掉对应环的灯：将掩码对应位清零
+            robot_status.led_ctrl_mask &= ~(1 << adc_buffers.adc_pin_map[i]); 
+        }
+        adc_buffers.hit_counters[i] = 0; // 清零计数器，为下一次检测做准备
+    }
+
+    /*--- 2. 发送击打状态数据 ---*/
+    if( robot_status.led_ctrl_mask != 0x3ff) //如果有击打发生
     {
-        last_led_ctrl_mask = g_led_ctrl_mask;
-        #if use_can_or_uart_comm
+        #if 0
         // 通过 CAN 发送击打状态
-        CAN_TxMsg.IdType = Can_STDID;
-        CAN_TxMsg.ID = CAN_SEND_ID_BASE+sub_ctrl_id; // 分控 ID 作为低字节
-        CAN_TxMsg.DLC = 2;
-        CAN_TxMsg.Data[0] = (g_led_ctrl_mask >> 8) & 0xFF; // 高字节
-        CAN_TxMsg.Data[1] = g_led_ctrl_mask & 0xFF;        // 低字节
-
-        free_can_mailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
+        comm_buffers.CAN_TxMsg.IdType = Can_STDID;
+        comm_buffers.CAN_TxMsg.ID = CAN_SEND_ID_BASE+sub_ctrl_id; // 分控 ID 作为低字节
+        comm_buffers.CAN_TxMsg.DLC = 2;
+        comm_buffers.CAN_TxMsg.Data[0] = (robot_status.led_ctrl_mask >> 8) & 0xFF; // 高字节
+        comm_buffers.CAN_TxMsg.Data[1] = robot_status.led_ctrl_mask & 0xFF;        // 低字节
+        comm_buffers.free_can_mailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
         /* Avoid the unused warning*/
-        UNUSED(&free_can_mailbox);
+        UNUSED(&comm_buffers.free_can_mailbox);
+        CANx_SendData(1, &comm_buffers.CAN_TxMsg);
         /*todo
         song
-        测试以上函数是否可用
-        以及是否需要等待邮箱空闲
+        测试是否需要等待邮箱空闲
         可以写一个循环等待邮箱空闲的机制
-        */
-
-        CANx_SendData(1, &CAN_TxMsg);
-
-        /*todo
-        song
         用can总线的话，存在发送失败的可能性，需要做重发机制。
         即类似i2c的ack机制。
         现在先把双向通信的功能做好，再考虑这个机制。
         */
+		#else
+		// 发送击打状态数据
+        comm_buffers.uart_tx_buf[0] = PACKET_HEADER; // 起始字节
+        comm_buffers.uart_tx_buf[1] = (robot_status.led_ctrl_mask >> 8) & 0xFF; // 高字节
+        comm_buffers.uart_tx_buf[2] = robot_status.led_ctrl_mask & 0xFF;        // 低字节
+        comm_buffers.uart_tx_buf[3] = comm_buffers.uart_tx_buf[1] ^ comm_buffers.uart_tx_buf[2]; // 简单异或校验
+        HAL_UART_Transmit(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf), 10);
         
-        #else
-        // 发送击打状态数据
-        static uint8_t tx_buffer[4];
-        tx_buffer[0] = PACKET_HEADER; // 起始字节
-        tx_buffer[1] = (g_led_ctrl_mask >> 8) & 0xFF; // 高字节
-        tx_buffer[2] = g_led_ctrl_mask & 0xFF;        // 低字节
-        tx_buffer[3] = tx_buffer[1] ^ tx_buffer[2]; // 简单异或校验
-        HAL_UART_Transmit(&huart3, tx_buffer, 4, 10);
-        #endif
+		#endif
+        robot_status.led_ctrl_mask=0x3ff;
     }
 
-    /*--- 2. 接收控制指令数据 ---*/
+    /*--- 3. 接收控制指令数据 ---*/
     // 1. 校验数据包
-    if (CAN_RxMsg.ID == (CAN_RECEIVE_ID_BASE+sub_ctrl_id) && CAN_RxMsg.DLC == 3) {
-        // 2. 更新全局状态
-        global_color = (light_color_enum)CAN_RxMsg.Data[0];
-        g_active_groups = CAN_RxMsg.Data[1];
-        g_energy_state = CAN_RxMsg.Data[2];
+    if(comm_buffers.can_rx_complete)
+    {
+        comm_buffers.can_rx_complete=false;
+        if (comm_buffers.CAN_RxMsg.ID == (CAN_RECEIVE_ID_BASE+sub_ctrl_id) && comm_buffers.CAN_RxMsg.DLC == 3) {
+            // 2. 更新全局状态
+            robot_status.color = (light_color_enum)comm_buffers.CAN_RxMsg.Data[0];
+            robot_status.active_groups = comm_buffers.CAN_RxMsg.Data[1];
+            robot_status.energy_state = (EnergySystemMode_t)comm_buffers.CAN_RxMsg.Data[2];
+        }
     }
+    if(comm_buffers.uart_rx_complete)
+    {
+        comm_buffers.uart_rx_complete=false;
+        // 1. 校验数据包
+    //由于手动计算校验码有点麻烦,先注释掉吧
+    #if 0
+        if (comm_buffers.uart_rx_buf[0] == PACKET_HEADER && (comm_buffers.uart_rx_buf[1] ^ comm_buffers.uart_rx_buf[2]) == comm_buffers.uart_rx_buf[3]) {
+    #else
+        if (comm_buffers.uart_rx_buf[0] == PACKET_HEADER) {
+    #endif
+            // 2. 更新全局状态
+            robot_status.color = (light_color_enum)comm_buffers.uart_rx_buf[1];
+            robot_status.active_groups = comm_buffers.uart_rx_buf[2];
+            robot_status.energy_state = (EnergySystemMode_t)comm_buffers.uart_rx_buf[3];
+        }
+    }   
+
+    OBSERVE_TASK_END(OBSERVE_COMM_TASK);
 }
 
 static void LED_Update(void)
 { //根据组数点亮对应指示灯，有5组，但是有10个灯，所以是间隔点亮，如果是1组，就点亮1，如果是2组，就点亮3，以此类推
-    g_led_ctrl_mask=0x000; // 先全部熄灭
-    g_led_ctrl_mask |= (1 << ((g_active_groups * 2) - 1)) - 1;
+    robot_status.led_ctrl_mask=0x000; // 先全部熄灭
+    robot_status.led_ctrl_mask |= (1 << ((robot_status.active_groups * 2) - 1)) - 1;
 }
 
 // 指示灯更新逻辑
 void LED_Indicator_Task(void) {
     
+    OBSERVE_TASK_START(OBSERVE_LED_TASK);
 
     // 1. 设置颜色切换引脚 (红蓝切换)
-    switch (global_color)
+    switch (robot_status.color)
     {
     case color_red:
         LED_RED_ENABLE;
@@ -161,21 +173,23 @@ void LED_Indicator_Task(void) {
     default:
         LED_RED_DISABLE;
         LED_SHUT_UP_CROSS_PATTERN;
-        g_led_ctrl_mask=0x000; // 全部熄灭
+        robot_status.led_ctrl_mask=0x000; // 全部熄灭
         break;
     }
 
     //只有在从off切换到color_red或color_blue时，才会点亮全部指示灯
     static light_color_enum last_color = color_off;
-    if (last_color == color_off && (global_color == color_red || global_color == color_blue)) {
-        g_led_ctrl_mask = 0x3FF; // 点亮全部指示灯
+    if (last_color == color_off && (robot_status.color == color_red || robot_status.color == color_blue)) {
+        robot_status.led_ctrl_mask = 0x3FF; // 点亮全部指示灯
     }
-    last_color = global_color;
+    last_color = robot_status.color;
 
     // 2. 更新10个环的亮灭
     for(int i=0; i<10; i++) {
-        HAL_GPIO_WritePin(Ring_LEDs[i].port, Ring_LEDs[i].pin, (g_led_ctrl_mask >> i) & 0x01);
+        HAL_GPIO_WritePin(robot_status.Ring_LEDs[i].port, robot_status.Ring_LEDs[i].pin, (robot_status.led_ctrl_mask >> i) & 0x01);
     }
+
+    OBSERVE_TASK_END(OBSERVE_LED_TASK);
 }
 
 
@@ -185,15 +199,14 @@ void System_Tasks_Init(void) {
         SystemTasks[i].last_run = HAL_GetTick();
     }
     // 启动 ADC DMA 循环采样
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)g_adc_raw, 10);
-    #if use_can_or_uart_comm
+    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers.adc_raw, 10);
     // can init
     CAN_Init(&hcan, User_CAN1_RxCpltCallback);
     CAN_Filter_Mask_Config(1, CanFilter_0 | CanFifo_0 | Can_STDID,CAN_RECEIVE_ID_BASE,CAN_FILTER_ID_MASK);
-    #else
     // 启动串口中断接收 (huart3)
-    HAL_UART_Receive_IT(&huart3, rx_buffer, 4);
-    #endif
+    HAL_UART_Receive_IT(&huart3, comm_buffers.uart_rx_buf, 4);
+
+
 }
 
 // 运行任务调度器
@@ -209,42 +222,23 @@ void System_Tasks_Run(void) {
     } 
 }
 
-#if use_can_or_uart_comm
-// CAN 接收回调函数
 
+// CAN 接收回调函数
 void User_CAN1_RxCpltCallback(CAN_COB *CAN_RxCOB)
 {
     //拷贝接收到的数据
-    memcpy(&CAN_RxMsg, CAN_RxCOB, sizeof(CAN_COB));
+    memcpy(&comm_buffers.CAN_RxMsg, CAN_RxCOB, sizeof(CAN_COB));
+    comm_buffers.can_rx_complete=true;
 }
 
-#else
 // 串口接收回调函数
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART3) {
-        // 1. 校验数据包
-        //由于手动计算校验码有点麻烦,先注释掉吧
-        #if 0
-        if (rx_buffer[0] == PACKET_HEADER && (rx_buffer[1] ^ rx_buffer[2]) == rx_buffer[3]) {
-        #else
-        if (rx_buffer[0] == PACKET_HEADER) {
-        #endif
-            // 2. 更新全局状态
-            global_color = (light_color_enum)rx_buffer[1];
-            g_active_groups = rx_buffer[2];
-            
-            // 3. 自动判断激活逻辑
-            // 如果颜色不为 off，则认为该分控处于激活状态
-            if (global_color != color_off) {
-                target_arm_id_mask |= sub_ctrl_id; 
-            } else {
-                target_arm_id_mask &= ~sub_ctrl_id;
-            }
-        }
+        memcpy(comm_buffers.uart_rx_buf, huart->pRxBuffPtr, sizeof(comm_buffers.uart_rx_buf));
+        comm_buffers.uart_rx_complete = true;
         // 4. 重新开启中断接收，准备下一次包
-        HAL_UART_Receive_IT(&huart3, rx_buffer, 4);
+        HAL_UART_Receive_IT(&huart3, comm_buffers.uart_rx_buf, sizeof(comm_buffers.uart_rx_buf));
     }
 }
-#endif
 
 
