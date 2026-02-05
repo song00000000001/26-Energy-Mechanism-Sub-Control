@@ -204,7 +204,7 @@ void User_CAN1_RxCpltCallback(CAN_COB *CAN_RxCOB)
 // 串口接收回调函数
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART3) {
-        memcpy(comm_buffers.uart_rx_buf, huart->pRxBuffPtr, sizeof(comm_buffers.uart_rx_buf));
+        //memcpy(comm_buffers.uart_rx_buf, huart->pRxBuffPtr, sizeof(comm_buffers.uart_rx_buf));
         comm_buffers.uart_rx_complete = true;
         // 4. 重新开启中断接收，准备下一次包
         HAL_UART_Receive_IT(&huart3, comm_buffers.uart_rx_buf, sizeof(comm_buffers.uart_rx_buf));
