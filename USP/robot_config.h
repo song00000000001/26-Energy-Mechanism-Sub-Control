@@ -8,26 +8,24 @@
 #include "tim.h"
 #include "can.h"
 #include "drv_can.h"
-
+#include <stdbool.h>
 /* --- 机器人配置宏 --- */
-#define use_can_or_uart_comm 1  // 1: 使用 CAN 通信; 0: 使用 UART 通信
 #define sub_ctrl_id 0x01  // 分控标识位
 
-#if use_can_or_uart_comm
-    #define CAN_RECEIVE_ID_BASE 0x210  // CAN 接收包头标识
-    #define CAN_SEND_ID_BASE 0x220 // CAN 发送包头标识
-    #define CAN_FILTER_ID_MASK 0x7F0 // CAN 过滤器标识，需要过滤小于210，大于220的ID
-    /*
-    0x 210=33    0010 0001 00000000
-    0x 220=34    0010 0010 00000000
-    0x 7F0=2032  0111 1111 00000000    过滤器可以设置为
+#define CAN_RECEIVE_ID_BASE 0x210  // CAN 接收包头标识
+#define CAN_SEND_ID_BASE 0x220 // CAN 发送包头标识
+#define CAN_FILTER_ID_MASK 0x7F0 // CAN 过滤器标识，需要过滤小于210，大于220的ID
+/*
+0x 210=33    0010 0001 00000000
+0x 220=34    0010 0010 00000000
+0x 7F0=2032  0111 1111 00000000    过滤器可以设置为
 
-    这样可以过滤掉低8位的ID，只接收高8位为0x21和0x22的ID
-    具体可以根据实际需求调整
-    */
-#else
-    #define PACKET_HEADER 0xAA  //包头标识
-#endif
+这样可以过滤掉低8位的ID，只接收高8位为0x21和0x22的ID
+具体可以根据实际需求调整
+*/
+
+#define PACKET_HEADER 0xAA  //包头标识
+
 
 #define WS2812_ARM_COUNT 4     // 灯臂数量
 #define WS2312_LED_NUM 45   // 每条灯臂上的 WS2812 LED 数量
@@ -80,13 +78,93 @@ typedef struct {
 } Indicator_LED_t;
 
 
+typedef enum 
+{
+    color_off = 0,
+    color_red,
+    color_blue,
+    color_hit_red,
+    color_hit_blue
+}light_color_enum;
+
+typedef enum 
+{
+    main_arm_outside = 0,
+    main_arm_middle,
+    main_arm_inside,
+    sub_arm_left,
+    sub_arm_right
+}ligntarm_name_enum;
+
+typedef enum{
+    idle = 0,
+    small_energy,
+    big_energy,
+    success
+}EnergySystemMode_t;
 
 /* --- 全局状态声明 --- */
-extern light_color_enum global_color;
-extern uint8_t g_active_groups; // 激活组数 0~5
-extern uint8_t g_is_blue_team;  // 1: 蓝方, 0: 红方
-extern uint16_t g_led_ctrl_mask;    // 击打指示灯掩码
-extern Indicator_LED_t Ring_LEDs[10];
+
+//通信收发缓冲区结构体
+typedef struct {
+
+	uint8_t free_can_mailbox;
+	CAN_COB CAN_RxMsg;
+    CAN_COB CAN_TxMsg;
+	bool can_rx_complete;
+	
+    uint8_t uart_rx_buf[4]; // UART 接收缓冲区
+    uint8_t uart_tx_buf[4]; // UART 发送缓冲区
+    bool uart_rx_complete;
+} CommBuffers_t;
+extern CommBuffers_t comm_buffers;
+
+//adc原始数据缓冲区和击打计数器结构体
+typedef struct {
+    uint16_t adc_raw[10]; // DMA 自动填充的原始数据
+    uint16_t hit_counters[10]; // 击打确认计数器
+    uint16_t HIT_THRESHOLD;  // ADC 击打判定阈值 (根据实际压力调整)
+    uint16_t HIT_CONFIRM_COUNT;        // 连续N次采样超过阈值则认为击打
+    uint8_t  adc_pin_map[10]; // ADC引脚到指示灯环的映射表
+} ADCBuffers_t;
+extern ADCBuffers_t adc_buffers;
+
+//机器人状态结构体
+typedef struct {
+    EnergySystemMode_t energy_state; // 能量状态
+    light_color_enum color;
+    uint8_t active_groups; // 激活组数 0~5
+    uint16_t led_ctrl_mask;    // 击打指示灯掩码
+    uint16_t hit_mask;        // 击打状态掩码
+    Indicator_LED_t Ring_LEDs[10];
+    uint8_t is_blue_team;  // 1: 蓝方, 0: 红方
+} RobotStatus_t;
+extern RobotStatus_t robot_status;
+
+//由于我不想频繁切换示波器探头,所以打算复用一两个gpio,然后通过全局变量切换,观察不同任务的执行时间
+typedef enum {
+    OBSERVE_NONE = 0,
+    OBSERVE_COMM_TASK,
+    OBSERVE_LED_TASK,
+    OBSERVE_HIT_LOGIC_TASK,
+} ObserveTask_t;
+
+typedef struct {
+    ObserveTask_t observe_task;
+} debug_status_t;
+extern debug_status_t debug_status;
+
+//定义宏方便使用
+#define OBSERVE_TASK_START(task)  do { \
+    if (debug_status.observe_task == task) { \
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET); \
+    } \
+} while(0)
+#define OBSERVE_TASK_END(task)  do { \
+    if (debug_status.observe_task == task) { \
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET); \
+    } \
+} while(0)
 
 /* --- 函数接口 --- */
 void System_Tasks_Init(void);
@@ -95,3 +173,12 @@ void LED_Indicator_Task(void);
 void Comm_Task(void);
 
 
+/*
+调整任务优先级
+adc dma chan1 = 0; //adc1 dma搬运
+tim3/tim4 dma chan3,4,5,6 = 1; //ws2812
+tim5 it = 2; //击打计数
+uart3 rx it = 3; //uart3接收中断
+uart3 tx dma chan2 = 3; //uart3发送dma
+can1 rx/tx it= 3; //can1收发中断
+*/

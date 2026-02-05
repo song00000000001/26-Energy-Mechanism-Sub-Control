@@ -12,11 +12,10 @@
 
 #define arm_tim1 &htim3
 #define arm_channel_1 TIM_CHANNEL_1
-#define arm_channel_2 TIM_CHANNEL_3
-#define arm_channel_3 TIM_CHANNEL_4
+#define arm_channel_2 TIM_CHANNEL_4
 #define arm_tim2 &htim4
-#define arm_channel_4 TIM_CHANNEL_2 //备用通道有CHAN3，也是配好的，只需要改这里
-#define arm_channel_5 TIM_CHANNEL_3 //由于不写tim_pwm_stop_dma函数考可能会进硬件错误处理，所以这里预留一个通道
+#define arm_channel_3 TIM_CHANNEL_2 
+#define arm_channel_4 TIM_CHANNEL_3 
 
 // 4路PWM DMA数据缓存: [0,1,2]主灯臂, [3]左右灯臂
 static uint16_t tim_pwm_dma_buff[WS2812_ARM_COUNT][dma_data_len] = {0};//PWM DMA数据缓存
@@ -49,20 +48,18 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
         // 停止顺序：先停通道，如果有必要可以手动把 CCR 清零
         HAL_TIM_PWM_Stop_DMA(htim, arm_channel_1);
         HAL_TIM_PWM_Stop_DMA(htim, arm_channel_2);
-        HAL_TIM_PWM_Stop_DMA(htim, arm_channel_3);
         // 强制清零 CCR，防止停止瞬间引脚保持高电平
         __HAL_TIM_SET_COMPARE(htim, arm_channel_1, 0);
         __HAL_TIM_SET_COMPARE(htim, arm_channel_2, 0);
-		__HAL_TIM_SET_COMPARE(htim, arm_channel_3, 0);
     }
     else if (htim->Instance == TIM4) {
         // 传输完成后立即停止 DMA
         // 停止顺序：先停通道，如果有必要可以手动把 CCR 清零
+        HAL_TIM_PWM_Stop_DMA(htim, arm_channel_3);
         HAL_TIM_PWM_Stop_DMA(htim, arm_channel_4);
-        HAL_TIM_PWM_Stop_DMA(htim, arm_channel_5);
         // 强制清零 CCR，防止停止瞬间引脚保持高电平
+        __HAL_TIM_SET_COMPARE(htim, arm_channel_3, 0);
         __HAL_TIM_SET_COMPARE(htim, arm_channel_4, 0);
-        __HAL_TIM_SET_COMPARE(htim, arm_channel_5, 0);
     }
 }         
 /* --- 箭头显示优化配置 --- */
@@ -89,16 +86,19 @@ void light_arm_fill_all(uint8_t r, uint8_t g, uint8_t b)
     // 4. 非阻塞启动 4 路 DMA 传输
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂outside
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂middle
-    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂inside
+    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂inside
     HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);//左右灯臂
 }
 
 void WS2812_Update_Task(void)
 {
+    OBSERVE_TASK_START(OBSERVE_LED_TASK);
+
+    void LED_Indicator_Task();
     // 1. 获取当前的全局颜色 (GRB顺序)
     uint8_t r = 0, g = 0, b = 0;
 
-    switch (global_color)
+    switch (robot_status.color)
     {
     case color_red:
         r = 255;
@@ -120,7 +120,7 @@ void WS2812_Update_Task(void)
         break;
     }
     // 2. 计算当前允许亮起的灯珠上限 (1~5组, 每组9颗)
-    uint8_t active_limit = g_active_groups * LEDS_PER_STAGE;
+    uint8_t active_limit = robot_status.active_groups * LEDS_PER_STAGE;
 
     // 3. 更新流动偏移量
     // arrow_period 是一个完整图案的长度
@@ -180,6 +180,66 @@ void WS2812_Update_Task(void)
     // 4. 非阻塞启动 5 路 DMA 传输
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂outside
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);//主灯臂middle
-    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);//主灯臂inside
+    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);//主灯臂inside
     HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);//左右灯臂
+
+    OBSERVE_TASK_END(OBSERVE_LED_TASK);
+}
+
+
+static void LED_Update(void)
+{ //根据组数点亮对应指示灯，有5组，但是有10个灯，所以是间隔点亮，如果是1组，就点亮1，如果是2组，就点亮3，以此类推
+    robot_status.led_ctrl_mask=0x000; // 先全部熄灭
+    robot_status.led_ctrl_mask |= (1 << ((robot_status.active_groups * 2) - 1)) - 1;
+}
+
+// 指示灯更新逻辑
+void LED_Indicator_Task(void) {
+
+    // 1. 设置颜色切换引脚 (红蓝切换)
+    switch (robot_status.color)
+    {
+    case color_red:
+        LED_RED_ENABLE;
+        LED_SHOW_CROSS_PATTERN;
+        robot_status.led_ctrl_mask=robot_status.hit_mask; // 保持击打状态指示灯
+        break;
+
+    case color_blue:
+        LED_BLUE_ENABLE;
+        LED_SHOW_CROSS_PATTERN;
+        robot_status.led_ctrl_mask=robot_status.hit_mask; // 保持击打状态指示灯
+        break;
+
+    case color_hit_red:
+        LED_RED_ENABLE;
+        LED_SHUT_UP_CROSS_PATTERN;
+        LED_Update();
+        break;
+
+    case color_hit_blue:
+        LED_BLUE_ENABLE;
+        LED_SHUT_UP_CROSS_PATTERN;
+        LED_Update();
+        break;
+
+    case color_off:
+    default:
+        LED_RED_DISABLE;
+        LED_SHUT_UP_CROSS_PATTERN;
+        robot_status.led_ctrl_mask=0x000; // 全部熄灭
+        break;
+    }
+
+    //只有在从off切换到color_red或color_blue时，才会点亮全部指示灯
+    static light_color_enum last_color = color_off;
+    if (last_color == color_off && (robot_status.color == color_red || robot_status.color == color_blue)) {
+        robot_status.led_ctrl_mask = 0x3FF; // 点亮全部指示灯
+    }
+    last_color = robot_status.color;
+
+    // 2. 更新10个环的亮灭
+    for(int i=0; i<10; i++) {
+        HAL_GPIO_WritePin(robot_status.Ring_LEDs[i].port, robot_status.Ring_LEDs[i].pin, (robot_status.led_ctrl_mask >> i) & 0x01);
+    }
 }
