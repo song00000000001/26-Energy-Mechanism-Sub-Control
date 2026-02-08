@@ -2,7 +2,7 @@
 #include "robot_config.h"
 
 ADCBuffers_t adc_buffers={
-    .HIT_THRESHOLD = 300,  // ADC 击打判定阈值 (根据实际压力调整)
+    .HIT_THRESHOLD = 700,  // ADC 击打判定阈值 (根据实际压力调整)
     .HIT_CONFIRM_COUNT = 2,        // 连续N次采样超过阈值则认为击打
     .adc_pin_map = {9, 4, 8, 7, 6, 0, 1, 2, 3,5} // 映射表，根据实际连线调整
 };

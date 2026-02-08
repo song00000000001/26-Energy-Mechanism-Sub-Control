@@ -122,7 +122,7 @@ extern CommBuffers_t comm_buffers;
 //adc原始数据缓冲区和击打计数器结构体
 typedef struct {
     uint16_t adc_raw[10]; // DMA 自动填充的原始数据
-    uint16_t hit_counters[10]; // 击打确认计数器
+    uint32_t hit_counters[10]; // 击打确认计数器
     uint16_t HIT_THRESHOLD;  // ADC 击打判定阈值 (根据实际压力调整)
     uint16_t HIT_CONFIRM_COUNT;        // 连续N次采样超过阈值则认为击打
     uint8_t  adc_pin_map[10]; // ADC引脚到指示灯环的映射表
