@@ -33,7 +33,8 @@ RobotStatus_t robot_status={
 };
 	
 debug_status_t debug_status={
-    .observe_task = OBSERVE_COMM_TASK
+    .observe_task = OBSERVE_HIT_LOGIC_TASK,
+    .tim5_counter = 30-1
 };
 CommBuffers_t comm_buffers={
     .free_can_mailbox=0,
@@ -61,6 +62,9 @@ Task_t SystemTasks[] = {
 void Comm_Task(void)
 {
     OBSERVE_TASK_START(OBSERVE_COMM_TASK);
+
+    //__HAL_TIM_SET_AUTORELOAD(&htim5, debug_status.tim5_counter); // 定时器5自动重装载值
+    
     static bool is_hit_detected=false; // 上次检测到的击打状态
     /*--- 1. 判断击打状态变化---*/
     //由于同一时间只记录一个击打状态,如果出现多个环被击打,需要增加算法来判断哪个环的击打更有可能

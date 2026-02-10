@@ -94,7 +94,7 @@ void WS2812_Update_Task(void)
 {
     OBSERVE_TASK_START(OBSERVE_LED_TASK);
 
-    void LED_Indicator_Task();
+    LED_Indicator_Task();
     // 1. 获取当前的全局颜色 (GRB顺序)
     uint8_t r = 0, g = 0, b = 0;
 
@@ -127,7 +127,7 @@ void WS2812_Update_Task(void)
     uint16_t arrow_period = (3 * ARROW_STEP_LEN + ARROW_GAP);
     // 每次进入任务自增偏移。如果想减慢流动速度，可以加一个分频计数器。
     g_flow_offset = (g_flow_offset + 1) % arrow_period;
-
+#if 1
     for (int arm_idx = 0; arm_idx < WS2812_ARM_COUNT; arm_idx++) 
     {
         uint8_t temp_pixels[WS2312_LED_NUM * 3] = {0};
@@ -182,7 +182,7 @@ void WS2812_Update_Task(void)
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);//主灯臂middle
     HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);//主灯臂inside
     HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);//左右灯臂
-
+#endif
     OBSERVE_TASK_END(OBSERVE_LED_TASK);
 }
 

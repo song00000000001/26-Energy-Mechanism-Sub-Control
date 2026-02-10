@@ -151,6 +151,7 @@ typedef enum {
 
 typedef struct {
     ObserveTask_t observe_task;
+    uint16_t tim5_counter;
 } debug_status_t;
 extern debug_status_t debug_status;
 
