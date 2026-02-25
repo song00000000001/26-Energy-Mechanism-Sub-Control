@@ -103,6 +103,13 @@ typedef enum{
     success
 }EnergySystemMode_t;
 
+//检测击打状态转换
+typedef enum{
+    before_hit=0,
+    record_hit,
+    after_hit
+}HitState_t;
+
 /* --- 全局状态声明 --- */
 
 //通信收发缓冲区结构体
@@ -126,6 +133,7 @@ typedef struct {
     uint16_t HIT_THRESHOLD;  // ADC 击打判定阈值 (根据实际压力调整)
     uint16_t HIT_CONFIRM_COUNT;        // 连续N次采样超过阈值则认为击打
     uint8_t  adc_pin_map[10]; // ADC引脚到指示灯环的映射表
+    uint8_t leave_debounce_count; // 离开消抖延时
 } ADCBuffers_t;
 extern ADCBuffers_t adc_buffers;
 
@@ -138,6 +146,8 @@ typedef struct {
     uint16_t hit_mask;        // 击打状态掩码
     Indicator_LED_t Ring_LEDs[10];
     uint8_t is_blue_team;  // 1: 蓝方, 0: 红方
+    bool is_still_in_hit;
+    HitState_t hit_state;
 } RobotStatus_t;
 extern RobotStatus_t robot_status;
 

@@ -101,9 +101,9 @@ int main(void)
   MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
     HAL_ADCEx_Calibration_Start(&hadc1);    //AD校准
-    HAL_Delay(200);
+   // HAL_Delay(200);
     System_Tasks_Init();
-    HAL_Delay(200);
+    //HAL_Delay(200);
     HAL_TIM_Base_Start_IT(&htim5);
   /* USER CODE END 2 */
 

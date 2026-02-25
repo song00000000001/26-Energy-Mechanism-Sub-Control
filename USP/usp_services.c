@@ -44,8 +44,8 @@ CommBuffers_t comm_buffers={
 
 // usp_services.c
 Task_t SystemTasks[] = {
-    {WS2812_Update_Task, 50, 0},    
-    {Comm_Task, 50, 0}             
+    {WS2812_Update_Task, 100, 0},    
+    {Comm_Task, 100, 0}             
 };
 
 // 击打判定只有200us的窗口期,所以需要更高频率的检测,放在定时器5中断里执行,考虑放到adc搬运dma完成回调里执行
@@ -63,24 +63,11 @@ void Comm_Task(void)
 {
     OBSERVE_TASK_START(OBSERVE_COMM_TASK);
 
-    //__HAL_TIM_SET_AUTORELOAD(&htim5, debug_status.tim5_counter); // 定时器5自动重装载值
+    __HAL_TIM_SET_AUTORELOAD(&htim5, debug_status.tim5_counter); // 定时器5自动重装载值
     
-    static bool is_hit_detected=false; // 上次检测到的击打状态
-    /*--- 1. 判断击打状态变化---*/
-    //由于同一时间只记录一个击打状态,如果出现多个环被击打,需要增加算法来判断哪个环的击打更有可能
-    //如果有一个超过阈值,就跳过检查
-    for(int i = 0; i < 10; i++) {
-        // 若有击打计数器累计超过阈值乘以窗口的，认为有击中情况。
-        if (adc_buffers.hit_counters[i] >= adc_buffers.HIT_CONFIRM_COUNT*adc_buffers.HIT_THRESHOLD) {
-            is_hit_detected=true;
-            break;
-        }
-    }
-    //如果检查到击打
-    if(is_hit_detected){
-        is_hit_detected=false;
+    if(robot_status.hit_state== after_hit){
         //比较出最大值的环
-        uint16_t max_value=0;
+        uint32_t max_value=0;
         uint8_t max_index=0;
         for(int i = 0; i <10; i++){
             if(adc_buffers.hit_counters[i]>max_value){
@@ -90,49 +77,47 @@ void Comm_Task(void)
             adc_buffers.hit_counters[i] = 0;
         }
         // 更新击打掩码，只记录最大值对应的环
-        robot_status.hit_mask = 1 << max_index;
-    }
-
-    /*--- 2. 发送击打状态数据 ---*/
-    if(robot_status.hit_mask != 0x3ff) //如果有击打发生，并且也不是初始状态
-    {
-        #if 1
-        // 通过 CAN 发送击打状态
-        comm_buffers.CAN_TxMsg.IdType = Can_STDID;
-        comm_buffers.CAN_TxMsg.ID = CAN_SEND_ID_BASE+sub_ctrl_id; // 分控 ID 作为低字节
-        comm_buffers.CAN_TxMsg.DLC = 2;
-        comm_buffers.CAN_TxMsg.Data[0] = (robot_status.hit_mask >> 8) & 0xFF; // 高字节
-        comm_buffers.CAN_TxMsg.Data[1] = robot_status.hit_mask & 0xFF;        // 低字节
-        comm_buffers.free_can_mailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
-        /* Avoid the unused warning*/
-        UNUSED(&comm_buffers.free_can_mailbox);
-        CANx_SendData(1, &comm_buffers.CAN_TxMsg);
-        /*todo
-        song
-        测试是否需要等待邮箱空闲
-        可以写一个循环等待邮箱空闲的机制
-        用can总线的话，存在发送失败的可能性，需要做重发机制。
-        即类似i2c的ack机制。
-        现在先把双向通信的功能做好，再考虑这个机制。
-        */
-		#endif
-        #if 0
-		// 发送击打状态数据
-        comm_buffers.uart_tx_buf[0] = PACKET_HEADER; // 起始字节
-        comm_buffers.uart_tx_buf[1] = (robot_status.hit_mask >> 8) & 0xFF; // 高字节
-        comm_buffers.uart_tx_buf[2] = robot_status.hit_mask & 0xFF;        // 低字节
-        comm_buffers.uart_tx_buf[3] = comm_buffers.uart_tx_buf[1] ^ comm_buffers.uart_tx_buf[2]; // 简单异或校验
-        HAL_UART_Transmit(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf), 10);
-        #else
-        // 发送击打状态数据,用字符形式发送
-        // 例如mask中0号被击打,则发送"0",如果是9号被击打,则发送"9"
-        comm_buffers.uart_tx_buf[0] = 'S';
-        comm_buffers.uart_tx_buf[1] = (char)(__builtin_ctz(robot_status.hit_mask) + '0'); // '0'~'9'
-        comm_buffers.uart_tx_buf[2] = '\r';
-        comm_buffers.uart_tx_buf[3] = '\n'; 
-        HAL_UART_Transmit_DMA(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf));
-		#endif
-        robot_status.hit_mask=0x3ff;
+        if(max_value > (adc_buffers.HIT_THRESHOLD)*adc_buffers.HIT_CONFIRM_COUNT){
+            robot_status.hit_mask = 1 << max_index;
+            #if 1
+            // 通过 CAN 发送击打状态
+            comm_buffers.CAN_TxMsg.IdType = Can_STDID;
+            comm_buffers.CAN_TxMsg.ID = CAN_SEND_ID_BASE+sub_ctrl_id; // 分控 ID 作为低字节
+            comm_buffers.CAN_TxMsg.DLC = 2;
+            comm_buffers.CAN_TxMsg.Data[0] = (robot_status.hit_mask >> 8) & 0xFF; // 高字节
+            comm_buffers.CAN_TxMsg.Data[1] = robot_status.hit_mask & 0xFF;        // 低字节
+            comm_buffers.free_can_mailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
+            /* Avoid the unused warning*/
+            UNUSED(&comm_buffers.free_can_mailbox);
+            CANx_SendData(1, &comm_buffers.CAN_TxMsg);
+            /*todo
+            song
+            测试是否需要等待邮箱空闲
+            可以写一个循环等待邮箱空闲的机制
+            用can总线的话，存在发送失败的可能性，需要做重发机制。
+            即类似i2c的ack机制。
+            现在先把双向通信的功能做好，再考虑这个机制。
+            */
+            #endif
+            #if 0
+            // 发送击打状态数据
+            comm_buffers.uart_tx_buf[0] = PACKET_HEADER; // 起始字节
+            comm_buffers.uart_tx_buf[1] = (robot_status.hit_mask >> 8) & 0xFF; // 高字节
+            comm_buffers.uart_tx_buf[2] = robot_status.hit_mask & 0xFF;        // 低字节
+            comm_buffers.uart_tx_buf[3] = comm_buffers.uart_tx_buf[1] ^ comm_buffers.uart_tx_buf[2]; // 简单异或校验
+            HAL_UART_Transmit(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf), 10);
+            #else
+            // 发送击打状态数据,用字符形式发送
+            // 例如mask中0号被击打,则发送"0",如果是9号被击打,则发送"9"
+            comm_buffers.uart_tx_buf[0] = 'S';
+            comm_buffers.uart_tx_buf[1] = (char)(__builtin_ctz(robot_status.hit_mask) + '0'); // '0'~'9'
+            comm_buffers.uart_tx_buf[2] = '\r';
+            comm_buffers.uart_tx_buf[3] = '\n'; 
+            HAL_UART_Transmit_DMA(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf));
+            #endif
+            robot_status.hit_mask=0x3ff;
+        }
+        robot_status.hit_state=before_hit;
     }
 
     /*--- 3. 接收控制指令数据 ---*/
@@ -208,7 +193,6 @@ void User_CAN1_RxCpltCallback(CAN_COB *CAN_RxCOB)
 // 串口接收回调函数
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART3) {
-        //memcpy(comm_buffers.uart_rx_buf, huart->pRxBuffPtr, sizeof(comm_buffers.uart_rx_buf));
         comm_buffers.uart_rx_complete = true;
         // 4. 重新开启中断接收，准备下一次包
         HAL_UART_Receive_IT(&huart3, comm_buffers.uart_rx_buf, sizeof(comm_buffers.uart_rx_buf));
