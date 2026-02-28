@@ -48,6 +48,85 @@ Task_t SystemTasks[] = {
     {Comm_Task, 100, 0}             
 };
 
+#if 1
+// 定义发送缓冲区：100帧 * 每帧(40字节数据 + 4字节结尾) = 4400 字节
+VofaFrame_t vofa_tx_buf[WAVE_BUFF_SIZE];
+void vofa_frame_tail_init(void) {
+    for (int i = 0; i < WAVE_BUFF_SIZE; i++) {
+        vofa_tx_buf[i].tail[0] = 0x00;
+        vofa_tx_buf[i].tail[1] = 0x00;
+        vofa_tx_buf[i].tail[2] = 0x80;
+        vofa_tx_buf[i].tail[3] = 0x7F;
+    }
+}
+void wave_send_2_uart(void){
+     if (wave_capture.state == WAVE_READY_TO_SEND) {
+        // 计算起始点 (触发点前 1ms)
+        int16_t start_idx = (int16_t)wave_capture.trigger_ptr - PRE_HIT_SAMPLES;
+        while (start_idx < 0) start_idx += WAVE_BUFF_SIZE;
+
+        // 填充 VOFA+ 帧
+        for (int i = 0; i < WAVE_BUFF_SIZE; i++) {
+            uint16_t curr_idx = (start_idx + i) % WAVE_BUFF_SIZE;
+            
+            // 转换 10 路数据为 float
+            for (int ch = 0; ch < 10; ch++) {
+                vofa_tx_buf[i].fdata[ch] = (float)wave_capture.buffer[curr_idx][adc_buffers.adc_pin_map[ch]];
+            }
+            
+            // 填充 JustFloat 帧尾: 0x00 0x00 0x80 0x7F
+            // vofa_tx_buf[i].tail[0] = 0x00;
+            // vofa_tx_buf[i].tail[1] = 0x00;
+            // vofa_tx_buf[i].tail[2] = 0x80;
+            // vofa_tx_buf[i].tail[3] = 0x7F;
+        }
+
+        // 使用 DMA 一次性发出 4400 字节
+        // 建议波特率设为 460800 或 921600，这样发送过程大约只需 50ms-100ms
+        HAL_UART_Transmit_DMA(&huart3, (uint8_t*)vofa_tx_buf, sizeof(vofa_tx_buf));
+
+        // 重置捕获状态机
+        wave_capture.state = WAVE_IDLE;
+        wave_capture.count_after_hit = 0;
+         //比较出最大值的环
+        uint32_t max_value=0;
+        uint8_t max_index=0;
+        for(int i = 0; i <10; i++){
+            if(adc_buffers.hit_counters[i]>max_value){
+                max_value=adc_buffers.hit_counters[i];
+                max_index=i;
+            }
+            adc_buffers.hit_counters[i] = 0;
+        }
+        // 更新击打掩码，只记录最大值对应的环
+        if(max_value > (adc_buffers.HIT_THRESHOLD)*adc_buffers.HIT_CONFIRM_COUNT){
+            robot_status.hit_mask = 1 << max_index;
+            // 通过 CAN 发送击打状态
+            comm_buffers.CAN_TxMsg.IdType = Can_STDID;
+            comm_buffers.CAN_TxMsg.ID = CAN_SEND_ID_BASE+sub_ctrl_id; // 分控 ID 作为低字节
+            comm_buffers.CAN_TxMsg.DLC = 2;
+            comm_buffers.CAN_TxMsg.Data[0] = __builtin_ctz(robot_status.hit_mask); // 发送被击打的环的索引
+            comm_buffers.CAN_TxMsg.Data[1] = 0; // 预留字节
+            comm_buffers.free_can_mailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
+            /* Avoid the unused warning*/
+            UNUSED(&comm_buffers.free_can_mailbox);
+            CANx_SendData(1, &comm_buffers.CAN_TxMsg);
+        }
+        // 发送击打状态数据,用字符形式发送
+        // 例如mask中0号被击打,则发送"0",如果是9号被击打,则发送"9"
+        comm_buffers.uart_tx_buf[0] = '\n'; 
+        comm_buffers.uart_tx_buf[1] = 'S';
+        comm_buffers.uart_tx_buf[2] = (char)(__builtin_ctz(robot_status.hit_mask) + '0'); // '0'~'9'
+        comm_buffers.uart_tx_buf[3] = '\n';
+
+        HAL_UART_Transmit_DMA(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf));
+        robot_status.hit_mask=0x3ff;
+        robot_status.hit_state=before_hit;
+    }
+
+}
+#endif
+
 // 击打判定只有200us的窗口期,所以需要更高频率的检测,放在定时器5中断里执行,考虑放到adc搬运dma完成回调里执行
 
 //通信处理,改为最终总结击打状态，并发送出去,而击打判定只负责增加击打计数
@@ -59,12 +138,20 @@ Task_t SystemTasks[] = {
 */
 //分控的设计逻辑是不设计任何逻辑,只负责根据主控控制状态切换显示,然后一直搬移传感器数据.
 //这里的数据即便分控没有被选中，在变化后也应该给主控，好让主控判断是否打错。
+ /*todo
+song
+测试是否需要等待邮箱空闲
+可以写一个循环等待邮箱空闲的机制
+用can总线的话，存在发送失败的可能性，需要做重发机制。
+即类似i2c的ack机制。
+现在先把双向通信的功能做好，再考虑这个机制。
+*/
 void Comm_Task(void)
 {
     OBSERVE_TASK_START(OBSERVE_COMM_TASK);
 
     __HAL_TIM_SET_AUTORELOAD(&htim5, debug_status.tim5_counter); // 定时器5自动重装载值
-    
+    #if 0
     if(robot_status.hit_state== after_hit){
         //比较出最大值的环
         uint32_t max_value=0;
@@ -79,7 +166,7 @@ void Comm_Task(void)
         // 更新击打掩码，只记录最大值对应的环
         if(max_value > (adc_buffers.HIT_THRESHOLD)*adc_buffers.HIT_CONFIRM_COUNT){
             robot_status.hit_mask = 1 << max_index;
-            #if 1
+
             // 通过 CAN 发送击打状态
             comm_buffers.CAN_TxMsg.IdType = Can_STDID;
             comm_buffers.CAN_TxMsg.ID = CAN_SEND_ID_BASE+sub_ctrl_id; // 分控 ID 作为低字节
@@ -90,23 +177,7 @@ void Comm_Task(void)
             /* Avoid the unused warning*/
             UNUSED(&comm_buffers.free_can_mailbox);
             CANx_SendData(1, &comm_buffers.CAN_TxMsg);
-            /*todo
-            song
-            测试是否需要等待邮箱空闲
-            可以写一个循环等待邮箱空闲的机制
-            用can总线的话，存在发送失败的可能性，需要做重发机制。
-            即类似i2c的ack机制。
-            现在先把双向通信的功能做好，再考虑这个机制。
-            */
-            #endif
-            #if 0
-            // 发送击打状态数据
-            comm_buffers.uart_tx_buf[0] = PACKET_HEADER; // 起始字节
-            comm_buffers.uart_tx_buf[1] = (robot_status.hit_mask >> 8) & 0xFF; // 高字节
-            comm_buffers.uart_tx_buf[2] = robot_status.hit_mask & 0xFF;        // 低字节
-            comm_buffers.uart_tx_buf[3] = comm_buffers.uart_tx_buf[1] ^ comm_buffers.uart_tx_buf[2]; // 简单异或校验
-            HAL_UART_Transmit(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf), 10);
-            #else
+    
             // 发送击打状态数据,用字符形式发送
             // 例如mask中0号被击打,则发送"0",如果是9号被击打,则发送"9"
             comm_buffers.uart_tx_buf[0] = 'S';
@@ -114,12 +185,16 @@ void Comm_Task(void)
             comm_buffers.uart_tx_buf[2] = '\r';
             comm_buffers.uart_tx_buf[3] = '\n'; 
             HAL_UART_Transmit_DMA(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf));
-            #endif
             robot_status.hit_mask=0x3ff;
         }
-        robot_status.hit_state=before_hit;
-    }
 
+        robot_status.hit_state=before_hit;
+  
+    }
+    #endif
+
+    wave_send_2_uart();
+   
     /*--- 3. 接收控制指令数据 ---*/
     // can接收
     if(comm_buffers.can_rx_complete)
@@ -137,12 +212,7 @@ void Comm_Task(void)
     {
         comm_buffers.uart_rx_complete=false;
         // 1. 校验数据包
-        //由于手动计算校验码有点麻烦,先注释掉吧
-    #if 0
-        if (comm_buffers.uart_rx_buf[0] == PACKET_HEADER && (comm_buffers.uart_rx_buf[1] ^ comm_buffers.uart_rx_buf[2]) == comm_buffers.uart_rx_buf[3]) {
-    #else
         if (comm_buffers.uart_rx_buf[0] == PACKET_HEADER) {
-    #endif
             // 2. 更新全局状态
             robot_status.color = (light_color_enum)comm_buffers.uart_rx_buf[1];
             robot_status.active_groups = comm_buffers.uart_rx_buf[2];
@@ -152,8 +222,6 @@ void Comm_Task(void)
 
     OBSERVE_TASK_END(OBSERVE_COMM_TASK);
 }
-
-
 
 // 初始化任务调度器
 void System_Tasks_Init(void) {
@@ -167,6 +235,7 @@ void System_Tasks_Init(void) {
     CAN_Filter_Mask_Config(1, CanFilter_0 | CanFifo_0 | Can_STDID,CAN_RECEIVE_ID_BASE,CAN_FILTER_ID_MASK);
     // 启动串口中断接收 (huart3)
     HAL_UART_Receive_IT(&huart3, comm_buffers.uart_rx_buf, 4);
+    vofa_frame_tail_init();
 }
 
 // 运行任务调度器

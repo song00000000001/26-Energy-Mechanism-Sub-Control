@@ -193,3 +193,38 @@ uart3 rx it = 3; //uart3接收中断
 uart3 tx dma chan2 = 3; //uart3发送dma
 can1 rx/tx it= 3; //can1收发中断
 */
+
+/* --- 窗口捕获配置 --- */
+#define ADC_CHANNELS        10
+#define SAMPLE_INTERVAL_US  30
+// 总共捕获5ms的数据（预留充足空间）
+// 击打前保留1ms
+
+// 3ms / 30us = 100个采样点
+#define WAVE_BUFF_SIZE      133 
+#define PRE_HIT_SAMPLES     33   // 预留约 1ms 的前置数据
+#define AFTER_HIT_SAMPLES   33   // 预留约 1ms 的击打后数据
+
+// VOFA+ JustFloat 帧结构体
+#pragma pack(1) // 确保结构体按1字节对齐，没有填充
+typedef struct {
+    float fdata[ADC_CHANNELS];
+    uint8_t tail[4]; // 帧尾: 0x00 0x00 0x80 0x7F
+} VofaFrame_t;
+#pragma pack()
+
+typedef enum {
+    WAVE_IDLE = 0,      // 循环写入中
+    WAVE_CAPTURING,     // 触发中，正在记录击打后数据
+    WAVE_READY_TO_SEND  // 记录完成，等待发送
+} WaveState_t;
+
+typedef struct {
+    uint16_t buffer[WAVE_BUFF_SIZE][ADC_CHANNELS]; // 原始数据缓冲区
+    uint16_t write_ptr;        // 当前写入指针
+    uint16_t trigger_ptr;      // 触发时刻的指针
+    uint16_t count_after_hit;  // 触发后的计数
+    WaveState_t state;
+} WaveCapture_t;
+
+extern WaveCapture_t wave_capture;
