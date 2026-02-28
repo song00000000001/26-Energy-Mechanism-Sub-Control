@@ -18,7 +18,7 @@ void Hit_Logic_Task(void) {
     {
         case before_hit:
             //如果有一个超过阈值,就跳转到记录击打状态
-            for(int i = 1; i < 10; i++) {
+            for(int i = 0; i < 10; i++) {
                 // 若有击打计数器累计超过阈值的，认为有击中情况。
                 if (adc_buffers.adc_raw[adc_buffers.adc_pin_map[i]] > adc_buffers.HIT_THRESHOLD) {
                     robot_status.hit_state=record_hit;
