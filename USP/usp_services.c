@@ -84,8 +84,8 @@ void Comm_Task(void)
             comm_buffers.CAN_TxMsg.IdType = Can_STDID;
             comm_buffers.CAN_TxMsg.ID = CAN_SEND_ID_BASE+sub_ctrl_id; // 分控 ID 作为低字节
             comm_buffers.CAN_TxMsg.DLC = 2;
-            comm_buffers.CAN_TxMsg.Data[0] = (robot_status.hit_mask >> 8) & 0xFF; // 高字节
-            comm_buffers.CAN_TxMsg.Data[1] = robot_status.hit_mask & 0xFF;        // 低字节
+            comm_buffers.CAN_TxMsg.Data[0] = __builtin_ctz(robot_status.hit_mask); // 发送被击打的环的索引
+            comm_buffers.CAN_TxMsg.Data[1] = 0; // 预留字节
             comm_buffers.free_can_mailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
             /* Avoid the unused warning*/
             UNUSED(&comm_buffers.free_can_mailbox);
@@ -121,7 +121,7 @@ void Comm_Task(void)
     }
 
     /*--- 3. 接收控制指令数据 ---*/
-    // 1. 校验数据包
+    // can接收
     if(comm_buffers.can_rx_complete)
     {
         comm_buffers.can_rx_complete=false;
@@ -132,11 +132,12 @@ void Comm_Task(void)
             robot_status.energy_state = (EnergySystemMode_t)comm_buffers.CAN_RxMsg.Data[2];
         }
     }
+    // uart接收
     if(comm_buffers.uart_rx_complete)
     {
         comm_buffers.uart_rx_complete=false;
         // 1. 校验数据包
-    //由于手动计算校验码有点麻烦,先注释掉吧
+        //由于手动计算校验码有点麻烦,先注释掉吧
     #if 0
         if (comm_buffers.uart_rx_buf[0] == PACKET_HEADER && (comm_buffers.uart_rx_buf[1] ^ comm_buffers.uart_rx_buf[2]) == comm_buffers.uart_rx_buf[3]) {
     #else
