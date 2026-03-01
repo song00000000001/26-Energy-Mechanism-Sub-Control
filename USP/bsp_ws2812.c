@@ -210,14 +210,12 @@ void LED_Indicator_Task(void) {
     {
     case color_red:
         LED_RED_ENABLE;
-        LED_SHOW_CROSS_PATTERN;
-        robot_status.led_ctrl_mask=robot_status.hit_mask; // 保持击打状态指示灯
+        LED_SHOW_CROSS_PATTERN;  
         break;
 
     case color_blue:
         LED_BLUE_ENABLE;
         LED_SHOW_CROSS_PATTERN;
-        robot_status.led_ctrl_mask=robot_status.hit_mask; // 保持击打状态指示灯
         break;
 
     case color_hit_red:

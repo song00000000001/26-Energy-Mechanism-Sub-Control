@@ -63,14 +63,6 @@ void Hit_Logic_Task(void) {
                 }
                 else
                     leave_count = 0;
-                // 如果处于捕获状态，计数
-                if (wave_capture.state == WAVE_CAPTURING) {
-                    wave_capture.count_after_hit++;
-                    // 录满剩余的窗口
-                    if (wave_capture.count_after_hit >= (AFTER_HIT_SAMPLES)) {
-                        wave_capture.state = WAVE_READY_TO_SEND;
-                    }
-                }
             }
             break;
 

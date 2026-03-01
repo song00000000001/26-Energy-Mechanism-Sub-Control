@@ -28,13 +28,13 @@ RobotStatus_t robot_status={
     },
     .color=color_red,
     .active_groups=5,
-    .hit_mask=0x3ff,
     .led_ctrl_mask=0x3FF,
 };
 	
 debug_status_t debug_status={
     .observe_task = OBSERVE_HIT_LOGIC_TASK,
-    .tim5_counter = 31//目前的负载下,31时主任务100ms周期稳定,空闲时间12ms左右.如果是30,则周期变成123.3ms，没有空闲。
+    .tim5_counter = 31,//目前的负载下,31时主任务100ms周期稳定,空闲时间12ms左右.如果是30,则周期变成123.3ms，没有空闲。
+    .adc_10_send_enable=1 // 0: 不发送, 1: 发送10路原始数据, 2: 只发送击打状态
 };
 CommBuffers_t comm_buffers={
     .free_can_mailbox=0,
@@ -48,7 +48,7 @@ Task_t SystemTasks[] = {
     {WS2812_Update_Task, 100, 0}      
 };
 
-#if 1
+
 // 定义发送缓冲区：100帧 * 每帧(40字节数据 + 4字节结尾) = 4400 字节
 VofaFrame_t vofa_tx_buf[WAVE_BUFF_SIZE];
 void vofa_frame_tail_init(void) {
@@ -61,32 +61,6 @@ void vofa_frame_tail_init(void) {
 }
 void wave_send_2_uart(void){
      if (wave_capture.state == WAVE_READY_TO_SEND) {
-        // 计算起始点 (触发点前 1ms)
-        int16_t start_idx = (int16_t)wave_capture.trigger_ptr - PRE_HIT_SAMPLES;
-        while (start_idx < 0) start_idx += WAVE_BUFF_SIZE;
-
-        // 填充 VOFA+ 帧
-        for (int i = 0; i < WAVE_BUFF_SIZE; i++) {
-            uint16_t curr_idx = (start_idx + i) % WAVE_BUFF_SIZE;
-            
-            // 转换 10 路数据为 float
-            for (int ch = 0; ch < 10; ch++) {
-                vofa_tx_buf[i].fdata[ch] = (float)wave_capture.buffer[curr_idx][adc_buffers.adc_pin_map[ch]];
-            }
-            
-            // 填充 JustFloat 帧尾: 0x00 0x00 0x80 0x7F
-            // vofa_tx_buf[i].tail[0] = 0x00;
-            // vofa_tx_buf[i].tail[1] = 0x00;
-            // vofa_tx_buf[i].tail[2] = 0x80;
-            // vofa_tx_buf[i].tail[3] = 0x7F;
-        }
-
-        // 使用 DMA 一次性发出 4400 字节
-        // 波特率设为921600，这样发送过程大约只需 50ms
-        // 实测63ms
-        OBSERVE_TASK_START(OBSERVE_UART_DMA);
-        HAL_UART_Transmit_DMA(&huart3, (uint8_t*)vofa_tx_buf, sizeof(vofa_tx_buf));
-
         // 重置捕获状态机
         wave_capture.state = WAVE_IDLE;
         wave_capture.count_after_hit = 0;
@@ -102,32 +76,53 @@ void wave_send_2_uart(void){
         }
         // 更新击打掩码，只记录最大值对应的环
         if(max_value > (adc_buffers.HIT_THRESHOLD)*adc_buffers.HIT_CONFIRM_COUNT){
-            robot_status.hit_mask = 1 << max_index;
+            robot_status.led_ctrl_mask = 0; // 先清除所有指示灯
+            robot_status.led_ctrl_mask = 1 << max_index;
             // 通过 CAN 发送击打状态
             comm_buffers.CAN_TxMsg.IdType = Can_STDID;
             comm_buffers.CAN_TxMsg.ID = CAN_SEND_ID_BASE+sub_ctrl_id; // 分控 ID 作为低字节
             comm_buffers.CAN_TxMsg.DLC = 2;
-            comm_buffers.CAN_TxMsg.Data[0] = __builtin_ctz(robot_status.hit_mask); // 发送被击打的环的索引
+            comm_buffers.CAN_TxMsg.Data[0] = max_index; // 发送被击打的环的索引
             comm_buffers.CAN_TxMsg.Data[1] = 0; // 预留字节
             comm_buffers.free_can_mailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
             /* Avoid the unused warning*/
             UNUSED(&comm_buffers.free_can_mailbox);
             CANx_SendData(1, &comm_buffers.CAN_TxMsg);
+            // 计算起始点 (触发点前 1ms)
+            if(debug_status.adc_10_send_enable==1){
+                int16_t start_idx = (int16_t)wave_capture.trigger_ptr - PRE_HIT_SAMPLES;
+                while (start_idx < 0) start_idx += WAVE_BUFF_SIZE;
+                // 填充 VOFA+ 帧
+                for (int i = 0; i < WAVE_BUFF_SIZE; i++) {
+                    uint16_t curr_idx = (start_idx + i) % WAVE_BUFF_SIZE;
+                    
+                    // 转换 10 路数据为 float
+                    for (int ch = 0; ch < 10; ch++) {
+                        vofa_tx_buf[i].fdata[ch] = (float)wave_capture.buffer[curr_idx][adc_buffers.adc_pin_map[ch]];
+                    }
+                }
+                //为方便观察,把最后一组数据改成环数+1的负数乘以100,即-100,-200,...-1000
+                for(int ch=0;ch<10;ch++){
+                    vofa_tx_buf[WAVE_BUFF_SIZE-1].fdata[ch]=-100*(max_index+1);
+                }
+                // 使用 DMA 一次性发出 4400 字节,波特率设为921600，这样发送过程大约只需 50ms,实测63ms
+                OBSERVE_TASK_START(OBSERVE_UART_DMA);
+                HAL_UART_Transmit_DMA(&huart3, (uint8_t*)vofa_tx_buf, sizeof(vofa_tx_buf));
+            }
+            else if(debug_status.adc_10_send_enable==2){
+                // 发送击打状态数据,用字符形式发送
+                // 例如mask中0号被击打,则发送"0",如果是9号被击打,则发送"9"
+                comm_buffers.uart_tx_buf[0] = '\n'; 
+                comm_buffers.uart_tx_buf[1] = 'S';
+                comm_buffers.uart_tx_buf[2] = (char)(max_index + '0'); // '0'~'9'
+                comm_buffers.uart_tx_buf[3] = '\n';
+                HAL_UART_Transmit_DMA(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf));
+            }
         }
-        // 发送击打状态数据,用字符形式发送
-        // 例如mask中0号被击打,则发送"0",如果是9号被击打,则发送"9"
-        // comm_buffers.uart_tx_buf[0] = '\n'; 
-        // comm_buffers.uart_tx_buf[1] = 'S';
-        // comm_buffers.uart_tx_buf[2] = (char)(__builtin_ctz(robot_status.hit_mask) + '0'); // '0'~'9'
-        // comm_buffers.uart_tx_buf[3] = '\n';
-
-        // HAL_UART_Transmit_DMA(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf));
-        robot_status.hit_mask=0x3ff;
         robot_status.hit_state=before_hit;
     }
 
 }
-#endif
 
 // 击打判定只有200us的窗口期,所以需要更高频率的检测,放在定时器5中断里执行,考虑放到adc搬运dma完成回调里执行
 
@@ -153,47 +148,6 @@ void Comm_Task(void)
     OBSERVE_TASK_START(OBSERVE_COMM_TASK);
 
     __HAL_TIM_SET_AUTORELOAD(&htim5, debug_status.tim5_counter); // 定时器5自动重装载值
-    #if 0
-    if(robot_status.hit_state== after_hit){
-        //比较出最大值的环
-        uint32_t max_value=0;
-        uint8_t max_index=0;
-        for(int i = 0; i <10; i++){
-            if(adc_buffers.hit_counters[i]>max_value){
-                max_value=adc_buffers.hit_counters[i];
-                max_index=i;
-            }
-            adc_buffers.hit_counters[i] = 0;
-        }
-        // 更新击打掩码，只记录最大值对应的环
-        if(max_value > (adc_buffers.HIT_THRESHOLD)*adc_buffers.HIT_CONFIRM_COUNT){
-            robot_status.hit_mask = 1 << max_index;
-
-            // 通过 CAN 发送击打状态
-            comm_buffers.CAN_TxMsg.IdType = Can_STDID;
-            comm_buffers.CAN_TxMsg.ID = CAN_SEND_ID_BASE+sub_ctrl_id; // 分控 ID 作为低字节
-            comm_buffers.CAN_TxMsg.DLC = 2;
-            comm_buffers.CAN_TxMsg.Data[0] = __builtin_ctz(robot_status.hit_mask); // 发送被击打的环的索引
-            comm_buffers.CAN_TxMsg.Data[1] = 0; // 预留字节
-            comm_buffers.free_can_mailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
-            /* Avoid the unused warning*/
-            UNUSED(&comm_buffers.free_can_mailbox);
-            CANx_SendData(1, &comm_buffers.CAN_TxMsg);
-    
-            // 发送击打状态数据,用字符形式发送
-            // 例如mask中0号被击打,则发送"0",如果是9号被击打,则发送"9"
-            comm_buffers.uart_tx_buf[0] = 'S';
-            comm_buffers.uart_tx_buf[1] = (char)(__builtin_ctz(robot_status.hit_mask) + '0'); // '0'~'9'
-            comm_buffers.uart_tx_buf[2] = '\r';
-            comm_buffers.uart_tx_buf[3] = '\n'; 
-            HAL_UART_Transmit_DMA(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf));
-            robot_status.hit_mask=0x3ff;
-        }
-
-        robot_status.hit_state=before_hit;
-  
-    }
-    #endif
 
     wave_send_2_uart();
    

@@ -143,7 +143,6 @@ typedef struct {
     light_color_enum color;
     uint8_t active_groups; // 激活组数 0~5
     uint16_t led_ctrl_mask;    // 击打指示灯掩码
-    uint16_t hit_mask;        // 击打状态掩码
     Indicator_LED_t Ring_LEDs[10];
     uint8_t is_blue_team;  // 1: 蓝方, 0: 红方
     bool is_still_in_hit;
@@ -164,6 +163,7 @@ typedef enum {
 typedef struct {
     ObserveTask_t observe_task;
     uint16_t tim5_counter;
+    uint8_t adc_10_send_enable;
 } debug_status_t;
 extern debug_status_t debug_status;
 
