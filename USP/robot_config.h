@@ -155,8 +155,10 @@ extern RobotStatus_t robot_status;
 typedef enum {
     OBSERVE_NONE = 0,
     OBSERVE_COMM_TASK,
-    OBSERVE_LED_TASK,
+    OBSERVE_WS2812_TASK,
     OBSERVE_HIT_LOGIC_TASK,
+    OBSERVE_UART_DMA,
+    OBSERVE_PWM_DMA,
 } ObserveTask_t;
 
 typedef struct {

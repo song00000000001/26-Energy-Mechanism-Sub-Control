@@ -34,7 +34,7 @@ RobotStatus_t robot_status={
 	
 debug_status_t debug_status={
     .observe_task = OBSERVE_HIT_LOGIC_TASK,
-    .tim5_counter = 30-1
+    .tim5_counter = 31//目前的负载下,31时主任务100ms周期稳定,空闲时间12ms左右.如果是30,则周期变成123.3ms，没有空闲。
 };
 CommBuffers_t comm_buffers={
     .free_can_mailbox=0,
@@ -44,8 +44,8 @@ CommBuffers_t comm_buffers={
 
 // usp_services.c
 Task_t SystemTasks[] = {
-    {WS2812_Update_Task, 100, 0},    
-    {Comm_Task, 100, 0}             
+    {Comm_Task, 100, 0},   
+    {WS2812_Update_Task, 100, 0}      
 };
 
 #if 1
@@ -82,7 +82,9 @@ void wave_send_2_uart(void){
         }
 
         // 使用 DMA 一次性发出 4400 字节
-        // 建议波特率设为 460800 或 921600，这样发送过程大约只需 50ms-100ms
+        // 波特率设为921600，这样发送过程大约只需 50ms
+        // 实测63ms
+        OBSERVE_TASK_START(OBSERVE_UART_DMA);
         HAL_UART_Transmit_DMA(&huart3, (uint8_t*)vofa_tx_buf, sizeof(vofa_tx_buf));
 
         // 重置捕获状态机
@@ -114,12 +116,12 @@ void wave_send_2_uart(void){
         }
         // 发送击打状态数据,用字符形式发送
         // 例如mask中0号被击打,则发送"0",如果是9号被击打,则发送"9"
-        comm_buffers.uart_tx_buf[0] = '\n'; 
-        comm_buffers.uart_tx_buf[1] = 'S';
-        comm_buffers.uart_tx_buf[2] = (char)(__builtin_ctz(robot_status.hit_mask) + '0'); // '0'~'9'
-        comm_buffers.uart_tx_buf[3] = '\n';
+        // comm_buffers.uart_tx_buf[0] = '\n'; 
+        // comm_buffers.uart_tx_buf[1] = 'S';
+        // comm_buffers.uart_tx_buf[2] = (char)(__builtin_ctz(robot_status.hit_mask) + '0'); // '0'~'9'
+        // comm_buffers.uart_tx_buf[3] = '\n';
 
-        HAL_UART_Transmit_DMA(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf));
+        // HAL_UART_Transmit_DMA(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf));
         robot_status.hit_mask=0x3ff;
         robot_status.hit_state=before_hit;
     }
@@ -237,7 +239,7 @@ void System_Tasks_Init(void) {
     HAL_UART_Receive_IT(&huart3, comm_buffers.uart_rx_buf, 4);
     vofa_frame_tail_init();
 }
-
+#if 0
 // 运行任务调度器
 void System_Tasks_Run(void) {
     static uint32_t now = 0;
@@ -250,8 +252,28 @@ void System_Tasks_Run(void) {
         }
     } 
 }
+#else
+void System_Tasks_Run(void) {
+    uint32_t now = HAL_GetTick();   
+    for (int i = 0; i < sizeof(SystemTasks)/sizeof(Task_t); i++) {
+        // 使用减法处理溢出安全
+        if (now - SystemTasks[i].last_run >= SystemTasks[i].interval) {
+            
+            // --- 核心修复：增量累加而非直接赋值 ---
+            SystemTasks[i].last_run += SystemTasks[i].interval;
 
+            // 保护机制：如果系统卡死导致时间落后太多，强制对齐当前时间，防止任务连续补发
+            if (now - SystemTasks[i].last_run > SystemTasks[i].interval) {
+                SystemTasks[i].last_run = now;
+            }
 
+            if (SystemTasks[i].task_func != NULL) {
+                SystemTasks[i].task_func();
+            }
+        }
+    } 
+}
+#endif
 // CAN 接收回调函数
 void User_CAN1_RxCpltCallback(CAN_COB *CAN_RxCOB)
 {
@@ -269,4 +291,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     }
 }
 
-
+// 串口发送完成回调
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart->Instance == USART3) { // 确认是你的调试串口
+        OBSERVE_TASK_END(OBSERVE_UART_DMA);
+    }
+}

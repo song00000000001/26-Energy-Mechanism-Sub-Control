@@ -42,6 +42,7 @@ void Buff_translate(uint8_t* color_buff,uint16_t* dma_row_ptr) //颜色数组转
 // DMA 完成回调函数
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
+    static uint8_t dma_status_flag =0;
     // 判定是哪个定时器触发的
     if (htim->Instance == TIM3) {
         // 传输完成后立即停止 DMA
@@ -51,6 +52,7 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
         // 强制清零 CCR，防止停止瞬间引脚保持高电平
         __HAL_TIM_SET_COMPARE(htim, arm_channel_1, 0);
         __HAL_TIM_SET_COMPARE(htim, arm_channel_2, 0);
+        dma_status_flag++;
     }
     else if (htim->Instance == TIM4) {
         // 传输完成后立即停止 DMA
@@ -60,6 +62,12 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
         // 强制清零 CCR，防止停止瞬间引脚保持高电平
         __HAL_TIM_SET_COMPARE(htim, arm_channel_3, 0);
         __HAL_TIM_SET_COMPARE(htim, arm_channel_4, 0);
+        dma_status_flag++;
+    }
+    if(dma_status_flag>=2)
+    {
+        dma_status_flag=0;
+        OBSERVE_TASK_END(OBSERVE_PWM_DMA);
     }
 }         
 /* --- 箭头显示优化配置 --- */
@@ -92,7 +100,7 @@ void light_arm_fill_all(uint8_t r, uint8_t g, uint8_t b)
 
 void WS2812_Update_Task(void)
 {
-    OBSERVE_TASK_START(OBSERVE_LED_TASK);
+    OBSERVE_TASK_START(OBSERVE_WS2812_TASK);
 
     LED_Indicator_Task();
     // 1. 获取当前的全局颜色 (GRB顺序)
@@ -178,12 +186,13 @@ void WS2812_Update_Task(void)
     }
 
     // 4. 非阻塞启动 5 路 DMA 传输
+    OBSERVE_TASK_START(OBSERVE_PWM_DMA);
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂outside
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);//主灯臂middle
     HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);//主灯臂inside
     HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);//左右灯臂
 #endif
-    OBSERVE_TASK_END(OBSERVE_LED_TASK);
+    OBSERVE_TASK_END(OBSERVE_WS2812_TASK);
 }
 
 
