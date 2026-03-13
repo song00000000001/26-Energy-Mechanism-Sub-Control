@@ -209,30 +209,35 @@ void LED_Indicator_Task(void) {
     switch (robot_status.color)
     {
     case color_red:
+        LED_BLUE_DISABLE;
         LED_RED_ENABLE;
         LED_SHOW_CROSS_PATTERN;  
         break;
 
     case color_blue:
+        LED_RED_DISABLE;
         LED_BLUE_ENABLE;
         LED_SHOW_CROSS_PATTERN;
         break;
 
     case color_hit_red:
+        LED_BLUE_DISABLE;
         LED_RED_ENABLE;
         LED_SHUT_UP_CROSS_PATTERN;
-        LED_Update();
+        //LED_Update();
         break;
 
     case color_hit_blue:
+        LED_RED_DISABLE;
         LED_BLUE_ENABLE;
         LED_SHUT_UP_CROSS_PATTERN;
-        LED_Update();
+        //LED_Update();
         break;
 
     case color_off:
     default:
         LED_RED_DISABLE;
+        LED_BLUE_DISABLE;
         LED_SHUT_UP_CROSS_PATTERN;
         robot_status.led_ctrl_mask=0x000; // 全部熄灭
         break;

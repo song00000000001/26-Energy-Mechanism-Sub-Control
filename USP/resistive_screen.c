@@ -1,5 +1,6 @@
 #include "resistive_screen.h"
 #include "robot_config.h"
+#include "bsp_ws2812.h"
 
 ADCBuffers_t adc_buffers={
     .HIT_THRESHOLD = 700,  // ADC 击打判定阈值 (根据实际压力调整)
@@ -10,9 +11,8 @@ ADCBuffers_t adc_buffers={
 
 WaveCapture_t wave_capture = { .state = WAVE_IDLE };
 
-// 击打判定逻辑 (100Hz 运行，即 10ms 检查一次)
+// 击打判定逻辑 (31us检查一次)
 void Hit_Logic_Task(void) {
-
     static uint8_t leave_count = 0; // 离开消抖计数
     if (wave_capture.state != WAVE_READY_TO_SEND) {
         // 将当前的10路数据拷贝进环形缓冲
