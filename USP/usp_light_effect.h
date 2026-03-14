@@ -9,10 +9,8 @@
 typedef enum 
 {
     color_off = 0,
-    color_red,
+    color_red=0,
     color_blue,
-    color_hit_red,
-    color_hit_blue
 }light_color_enum;
 
 typedef enum 
@@ -48,3 +46,4 @@ typedef enum
 
 //后续会改通信协议让主控直接发送灯效ID过来,分控只负责执行对应的灯效
 void UspLight_Update(uint8_t effect_id);
+void UspLight_SetCurrentColor(uint8_t color_id);
