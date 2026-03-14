@@ -988,6 +988,16 @@
               <FilePath>..\USP\bsp_ws2812.h</FilePath>
             </File>
             <File>
+              <FileName>bsp_indicator_led.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\USP\bsp_indicator_led.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_indicator_led.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\USP\bsp_indicator_led.h</FilePath>
+            </File>
+            <File>
               <FileName>resistive_screen.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\USP\resistive_screen.c</FilePath>

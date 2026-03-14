@@ -6,17 +6,6 @@
 #define WS2312_LED_NUM      43      // 每条灯臂上的 WS2812 LED 数量,主侧灯臂刚好都是43颗长度。
 #define LEDS_PER_STAGE      9       // 每段包含的灯珠数 (45/5)
 
-//准备重构灯效控制逻辑，先定义一些枚举和结构体，方便后续使用
-#if 1
-typedef enum 
-{
-    main_arm_outside = 0,
-    main_arm_middle,
-    main_arm_inside,
-    sub_arm_left,
-    sub_arm_right
-}ligntarm_name_enum;
-
 typedef enum 
 {
     color_off = 0,
@@ -26,6 +15,39 @@ typedef enum
     color_hit_blue
 }light_color_enum;
 
+typedef enum 
+{
+    main_arm_outside = 0,
+    main_arm_middle,
+    main_arm_inside,
+    sub_arm_left,
+    sub_arm_right
+}ligntarm_name_enum;
+
+typedef enum{
+    idle = 0,
+    small_energy,
+    big_energy,
+    success
+}EnergySystemMode_t;
+
+//检测击打状态转换
+typedef enum{
+    before_hit=0,
+    record_hit,
+    after_hit
+}HitState_t;
+
+//准备重构灯效控制逻辑，先定义一些枚举和结构体，方便后续使用
+#if 0
+typedef enum 
+{
+    main_arm_outside = 0,
+    main_arm_middle,
+    main_arm_inside,
+    sub_arm_left,
+    sub_arm_right
+}ligntarm_name_enum;
 
 typedef enum{
     idle = 0,
@@ -42,14 +64,15 @@ typedef enum{
 }HitState_t;
 
 #else
+
 //重构思路:
 //分控只管跟随状态变换控制灯效,而不涉及上层逻辑,即大小神符还是组数,都由主控判断后直接发送分控应该亮起什么灯效，我认为这样是更解耦的。
 //颜色逻辑
-typedef enum{
-	color_off=0,
-	color_blue,
-	color_red
-}color_type;
+// typedef enum{
+// 	color_off=0,
+// 	color_blue,
+// 	color_red
+// }color_type;
 //灯效逻辑
 /**
 灯板包含10个指示灯,每个指示灯对应一个环数,1~10,可以用来显示当前的组数阶段,或者击打状态等信息。还有一个瞄准图案控制引脚,可以用来显示/隐藏一个固定的瞄准图案。目前瞄准灯效只在1号灯效使用，其他灯效都记得关闭瞄准图案。
@@ -62,4 +85,34 @@ typedef enum{
 5. 小符大符激活成功灯效：灯板只亮第8环；主侧灯臂全亮。
 此外，旧代码显示的方向是全部反的，需要调整箭头指向，箭头流动方向和侧灯臂的阶段亮起的头部位置。
 */
+//灯板帧结构体
+typedef struct {
+    light_color_enum color;   // 红 / 蓝 / 关
+    uint16_t ring_mask;       // 10个环灯 bit0~bit9
+    uint8_t cross_on;         // 是否显示瞄准图案
+} IndicatorFrame_t;
+//灯臂帧结构体
+typedef enum {
+    ARM_ROLE_MAIN_OUTSIDE = 0,
+    ARM_ROLE_MAIN_MIDDLE,
+    ARM_ROLE_MAIN_INSIDE,
+    ARM_ROLE_SUB_LEFT,
+    ARM_ROLE_SUB_RIGHT,
+    ARM_ROLE_COUNT
+} LightArmRole_t;
+//逻辑映射表
+typedef struct {
+    uint8_t rgb[WS2812_ARM_COUNT][WS2312_LED_NUM][3];
+} ArmFrame_t;
+//灯效枚举
+typedef enum {
+    LIGHT_EFFECT_OFF = 0,          // 全灭
+    LIGHT_EFFECT_AIMING,           // 待击打瞄准态
+    LIGHT_EFFECT_SMALL_HIT,        // 小符击中后
+    LIGHT_EFFECT_BIG_STAGE,        // 大符阶段/非待击打灯臂阶段态
+    LIGHT_EFFECT_SUCCESS,          // 激活成功
+} LightEffectId_t;
+//灯效选择器,不一定用到,后续会直接改通信协议让主控直接发送灯效ID过来,分控只负责执行对应的灯效,这样更解耦一些
+LightEffectId_t UspLight_SelectEffect(uint8_t effect_id);
+
 #endif
