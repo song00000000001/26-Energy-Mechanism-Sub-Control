@@ -19,8 +19,6 @@
 
 // 4路PWM DMA数据缓存: [0,1,2]主灯臂, [3]左右灯臂
 static uint16_t tim_pwm_dma_buff[WS2812_ARM_COUNT][dma_data_len] = {0};//PWM DMA数据缓存
-static uint8_t Pixel_Buff[WS2312_LED_NUM * 3] = {0};//RGB数据缓存
-
 
 void Buff_translate(uint8_t* color_buff,uint16_t* dma_row_ptr) //颜色数组转换为码元数组
 {   

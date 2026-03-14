@@ -1,6 +1,6 @@
 #pragma once
 
-#include "robot_config.h"
+#include "main.h"
 
 #define WS2812_ARM_COUNT    4       // 待控制的ws2812灯条数量,即pwm通道数量,目前设计为主灯臂用3路控5条+副灯臂用1路控2条,共5条,因为主灯臂图案左右对称，所以只需要3路就能控制5条了，剩下一路给副灯臂控制左右2条显示完全相同的矩形块即可。
 #define WS2312_LED_NUM      43      // 每条灯臂上的 WS2812 LED 数量,主侧灯臂刚好都是43颗长度。
@@ -24,7 +24,6 @@ typedef enum
     sub_arm_right
 }ligntarm_name_enum;
 
-
 //重构思路:
 //分控只管跟随状态变换控制灯效,而不涉及上层逻辑,即大小神符还是组数,都由主控判断后直接发送分控应该亮起什么灯效，我认为这样是更解耦的。
 //颜色逻辑
@@ -45,32 +44,7 @@ typedef enum
 5. 小符大符激活成功灯效：灯板只亮第8环；主侧灯臂全亮。
 此外，旧代码显示的方向是全部反的，需要调整箭头指向，箭头流动方向和侧灯臂的阶段亮起的头部位置。
 */
-//灯板帧结构体
-typedef struct {
-    light_color_enum color;   // 红 / 蓝 / 关
-    uint16_t ring_mask;       // 10个环灯 bit0~bit9
-    uint8_t cross_on;         // 是否显示瞄准图案
-} IndicatorFrame_t;
-//灯臂帧结构体
-typedef enum {
-    ARM_ROLE_MAIN_OUTSIDE = 0,
-    ARM_ROLE_MAIN_MIDDLE,
-    ARM_ROLE_MAIN_INSIDE,
-    ARM_ROLE_SUB_LEFT,
-    ARM_ROLE_SUB_RIGHT,
-    ARM_ROLE_COUNT
-} LightArmRole_t;
-//逻辑映射表
-typedef struct {
-    uint8_t rgb[WS2812_ARM_COUNT][WS2312_LED_NUM][3];
-} ArmFrame_t;
-//灯效枚举
-typedef enum {
-    LIGHT_EFFECT_OFF = 0,          // 全灭
-    LIGHT_EFFECT_AIMING,           // 待击打瞄准态
-    LIGHT_EFFECT_SMALL_HIT,        // 小符击中后
-    LIGHT_EFFECT_BIG_STAGE,        // 大符阶段/非待击打灯臂阶段态
-    LIGHT_EFFECT_SUCCESS,          // 激活成功
-} LightEffectId_t;
-//灯效选择器,不一定用到,后续会直接改通信协议让主控直接发送灯效ID过来,分控只负责执行对应的灯效,这样更解耦一些
-LightEffectId_t UspLight_SelectEffect(uint8_t effect_id);
+
+
+//后续会改通信协议让主控直接发送灯效ID过来,分控只负责执行对应的灯效
+void UspLight_Update(uint8_t effect_id);
