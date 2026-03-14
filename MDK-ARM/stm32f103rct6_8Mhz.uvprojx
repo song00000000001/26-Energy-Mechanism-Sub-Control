@@ -958,6 +958,16 @@
               <FilePath>..\USP\usp_services.c</FilePath>
             </File>
             <File>
+              <FileName>usp_light_effect.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\USP\usp_light_effect.c</FilePath>
+            </File>
+            <File>
+              <FileName>usp_light_effect.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\USP\usp_light_effect.h</FilePath>
+            </File>
+            <File>
               <FileName>robot_config.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\USP\robot_config.h</FilePath>

@@ -202,7 +202,7 @@ static void LED_Update(void)
     robot_status.led_ctrl_mask |= (1 << ((robot_status.active_groups * 2) - 1)) - 1;
 }
 
-// 指示灯更新逻辑
+// 灯板指示灯更新逻辑
 void LED_Indicator_Task(void) {
 
     // 1. 设置颜色切换引脚 (红蓝切换)

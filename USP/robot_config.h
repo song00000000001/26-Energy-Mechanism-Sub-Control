@@ -9,6 +9,8 @@
 #include "can.h"
 #include "drv_can.h"
 #include <stdbool.h>
+#include "usp_light_effect.h"
+
 /* --- 机器人配置宏 --- */
 #define sub_ctrl_id 0x01  // 分控标识位
 
@@ -26,92 +28,12 @@
 
 #define PACKET_HEADER 0xAA  //包头标识
 
-
-#define WS2812_ARM_COUNT 4     // 灯臂数量
-#define WS2312_LED_NUM 45   // 每条灯臂上的 WS2812 LED 数量
-#define MAIN_ARM_STAGES     5     // 主灯臂激活段数
-#define LEDS_PER_STAGE      9     // 每段包含的灯珠数 (45/5)
-#define WS2812_delay 15 // 每次显示完成后的延时，单位 ms
-#define LED_COUNT_PER_STRIP 45
-#define MAIN_ARM_STAGES     5
-#define ROWS_PER_STAGE      9
-
-#define RED_CTRL_PORT    GPIOB
-#define RED_CTRL_PIN     GPIO_PIN_0
-
-#define BLUE_CTRL_PORT    GPIOB
-#define BLUE_CTRL_PIN     GPIO_PIN_1
-
-#define LED_CROSS_CTRL_PORT GPIOA
-#define LED_CROSS_CTRL_PIN GPIO_PIN_9
-
-#define LED_RED_ENABLE HAL_GPIO_WritePin(RED_CTRL_PORT, RED_CTRL_PIN, GPIO_PIN_SET);  HAL_GPIO_WritePin(BLUE_CTRL_PORT, BLUE_CTRL_PIN, GPIO_PIN_RESET);
-#define LED_BLUE_ENABLE HAL_GPIO_WritePin(BLUE_CTRL_PORT, BLUE_CTRL_PIN, GPIO_PIN_SET);  HAL_GPIO_WritePin(RED_CTRL_PORT, RED_CTRL_PIN, GPIO_PIN_RESET);
-#define LED_RED_DISABLE HAL_GPIO_WritePin(RED_CTRL_PORT, RED_CTRL_PIN, GPIO_PIN_RESET);  HAL_GPIO_WritePin(BLUE_CTRL_PORT, BLUE_CTRL_PIN, GPIO_PIN_RESET);
-#define LED_BLUE_DISABLE HAL_GPIO_WritePin(BLUE_CTRL_PORT, BLUE_CTRL_PIN, GPIO_PIN_RESET);  HAL_GPIO_WritePin(RED_CTRL_PORT, RED_CTRL_PIN, GPIO_PIN_RESET);
-
-#define LED_SHOW_CROSS_PATTERN HAL_GPIO_WritePin(LED_CROSS_CTRL_PORT, LED_CROSS_CTRL_PIN, GPIO_PIN_SET);
-#define LED_SHUT_UP_CROSS_PATTERN HAL_GPIO_WritePin(LED_CROSS_CTRL_PORT, LED_CROSS_CTRL_PIN, GPIO_PIN_RESET);
-
-/* --- 10环电阻屏与指示灯配置 --- */
-#define RING_COUNT          10    // 10路ADC与10路指示灯
-
-extern uint16_t HIT_THRESHOLD;  // ADC 击打判定阈值 (根据实际压力调整)
-
-/* WS2812 颜色定义 */
-typedef struct {
-uint8_t r;
-uint8_t g;
-uint8_t b;
-} Color_t;
-
 /* --- 任务调度器结构体 --- */
 typedef struct {
     void (*task_func)(void);
     uint32_t interval;   // 运行间隔 (ms)
     uint32_t last_run;   // 上次运行时间, ms
 } Task_t;
-
-// robot_config.h 建议结构
-typedef struct {
-    GPIO_TypeDef* port;
-    uint16_t pin;
-} Indicator_LED_t;
-
-
-typedef enum 
-{
-    color_off = 0,
-    color_red,
-    color_blue,
-    color_hit_red,
-    color_hit_blue
-}light_color_enum;
-
-typedef enum 
-{
-    main_arm_outside = 0,
-    main_arm_middle,
-    main_arm_inside,
-    sub_arm_left,
-    sub_arm_right
-}ligntarm_name_enum;
-
-typedef enum{
-    idle = 0,
-    small_energy,
-    big_energy,
-    success
-}EnergySystemMode_t;
-
-//检测击打状态转换
-typedef enum{
-    before_hit=0,
-    record_hit,
-    after_hit
-}HitState_t;
-
-/* --- 全局状态声明 --- */
 
 //通信收发缓冲区结构体
 typedef struct {
@@ -151,7 +73,7 @@ typedef struct {
 } RobotStatus_t;
 extern RobotStatus_t robot_status;
 
-//由于我不想频繁切换示波器探头,所以打算复用一两个gpio,然后通过全局变量切换,观察不同任务的执行时间
+//调试观察结构体,可以通过修改 observe_task 来观察不同任务的执行时间
 typedef enum {
     OBSERVE_NONE = 0,
     OBSERVE_COMM_TASK,
@@ -160,23 +82,26 @@ typedef enum {
     OBSERVE_UART_DMA,
     OBSERVE_PWM_DMA,
 } ObserveTask_t;
-
+//调试状态结构体
 typedef struct {
-    ObserveTask_t observe_task;
-    uint16_t tim5_counter;
-    uint8_t adc_10_send_enable;
+    ObserveTask_t observe_task;// 当前观察的任务
+    uint16_t tim5_counter;//tim5重装载值,会在comm任务被写入tim5,可以动态调整定时中断频率.
+    uint8_t adc_10_send_enable;// 是否允许发送10路ADC数据到主控,0: 不发送, 1: 发送10路原始数据, 2: 只发送击打状态.默认1
 } debug_status_t;
 extern debug_status_t debug_status;
 
-//定义宏方便使用
+#define observe_gpio_port GPIOC
+#define observe_gpio_pin GPIO_PIN_8
+
+//观察宏定义,在对应的任务函数前后使用,可以通过示波器监测PC8引脚的高电平时间来观察任务执行时间
 #define OBSERVE_TASK_START(task)  do { \
     if (debug_status.observe_task == task) { \
-        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET); \
+        HAL_GPIO_WritePin(observe_gpio_port, observe_gpio_pin, GPIO_PIN_SET); \
     } \
 } while(0)
 #define OBSERVE_TASK_END(task)  do { \
     if (debug_status.observe_task == task) { \
-        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET); \
+        HAL_GPIO_WritePin(observe_gpio_port, observe_gpio_pin, GPIO_PIN_RESET); \
     } \
 } while(0)
 
@@ -197,6 +122,7 @@ uart3 tx dma chan2 = 3; //uart3发送dma
 can1 rx/tx it= 3; //can1收发中断
 */
 
+//击打状态机设计
 /* --- 窗口捕获配置 --- */
 #define ADC_CHANNELS        10
 #define SAMPLE_INTERVAL_US  30
