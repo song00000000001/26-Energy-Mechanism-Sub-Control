@@ -1,4 +1,5 @@
 #include "robot_config.h"
+#include "bsp_indicator_led.h"
 
 // 10个指示环的GPIO端口和引脚配置，
 /*更新：
@@ -112,8 +113,6 @@ void wave_send_2_uart(void){
 
 }
 
-// 击打判定只有200us的窗口期,所以需要更高频率的检测,放在定时器5中断里执行,考虑放到adc搬运dma完成回调里执行
-
 //通信处理,改为最终总结击打状态，并发送出去,而击打判定只负责增加击打计数
 /* 
 通信处理逻辑
@@ -131,11 +130,29 @@ song
 即类似i2c的ack机制。
 现在先把双向通信的功能做好，再考虑这个机制。
 */
+
+//总灯效控制任务,只需要输入灯效id，颜色和组数阶段，就能控制对应的灯效了,不需要再区分主副灯臂了,因为主控直接发送的就是最终的灯效状态了
+
+void all_light_effect_control_task(uint8_t effect_id, uint8_t color_id, uint8_t active_groups)
+{
+    // OBSERVE_TASK_START(OBSERVE_ALL_LIGHT_EFFECT_TASK);
+    UspLight_Update(effect_id);
+    UspLight_SetCurrentColor(color_id);
+    UspLight_SetGroupStage(active_groups);
+    // OBSERVE_TASK_END(OBSERVE_ALL_LIGHT_EFFECT_TASK);
+}
+
 void Comm_Task(void)
 {
     OBSERVE_TASK_START(OBSERVE_COMM_TASK);
 
-    __HAL_TIM_SET_AUTORELOAD(&htim5, debug_status.tim5_counter); // 定时器5自动重装载值
+    /*todo
+    song
+    优化成事件驱动的方式,即接收数据后直接处理,而不是等到定时任务来处理,这样可以更快地响应控制指令的变化,同时也能减少不必要的处理。
+    现在先实现功能,后续再优化成事件驱动的方式。
+    */
+    all_light_effect_control_task(robot_status.effect_id, robot_status.color, robot_status.active_groups);
+    __HAL_TIM_SET_AUTORELOAD(&htim5, debug_status.tim5_counter); // 定时器5自动重装载值，用于动态调整tim5定时器中断任务周期，以调整adc采样频率，调试时观察cpu负载，debug测试功能，稳定后注释掉。
 
     wave_send_2_uart();
    

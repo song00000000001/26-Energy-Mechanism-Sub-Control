@@ -950,7 +950,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>usp/services</GroupName>
+          <GroupName>usp/applications</GroupName>
           <Files>
             <File>
               <FileName>usp_services.c</FileName>
@@ -1031,6 +1031,21 @@
               <FileName>drv_can.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\USP\drv_can.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>usp/services</GroupName>
+          <Files>
+            <File>
+              <FileName>comm_protocal.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\USP\comm_protocal.cpp</FilePath>
+            </File>
+            <File>
+              <FileName>comm_protocal.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\USP\comm_protocal.h</FilePath>
             </File>
           </Files>
         </Group>

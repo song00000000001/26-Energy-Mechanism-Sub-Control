@@ -68,6 +68,8 @@ typedef struct {
     bool is_still_in_hit;
     HitState_t hit_state;
     light_color_enum color;   // 当前颜色状态
+    uint8_t effect_id;     // 当前灯效ID
+    uint8_t group_stage;    // 当前组数阶段
 } RobotStatus_t;
 extern RobotStatus_t robot_status;
 
