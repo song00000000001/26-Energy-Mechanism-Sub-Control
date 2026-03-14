@@ -106,27 +106,27 @@ void WS2812_Update_Task(void)
     // 1. 获取当前的全局颜色 (GRB顺序)
     uint8_t r = 0, g = 0, b = 0;
 
-    switch (robot_status.color)
-    {
-    case color_red:
-        r = 255;
-        break;
-    case color_blue:
-        b = 255;
-        break;
-    case color_hit_red:
-        r = 255;
-        light_arm_fill_all(r, g, b);
-        return;
-    case color_hit_blue:
-        b = 255;
-        light_arm_fill_all(r, g, b);
-        return;
-    case color_off:
-    default:
-        r = 0; g = 0; b = 0;
-        break;
-    }
+    // switch (robot_status.color)
+    // {
+    // case color_red:
+    //     r = 255;
+    //     break;
+    // case color_blue:
+    //     b = 255;
+    //     break;
+    // case color_hit_red:
+    //     r = 255;
+    //     light_arm_fill_all(r, g, b);
+    //     return;
+    // case color_hit_blue:
+    //     b = 255;
+    //     light_arm_fill_all(r, g, b);
+    //     return;
+    // case color_off:
+    // default:
+    //     r = 0; g = 0; b = 0;
+    //     break;
+    // }
     // 2. 计算当前允许亮起的灯珠上限 (1~5组, 每组9颗)
     uint8_t active_limit = robot_status.active_groups * LEDS_PER_STAGE;
 
@@ -206,49 +206,49 @@ static void LED_Update(void)
 void LED_Indicator_Task(void) {
 
     // 1. 设置颜色切换引脚 (红蓝切换)
-    switch (robot_status.color)
-    {
-    case color_red:
-        LED_BLUE_DISABLE;
-        LED_RED_ENABLE;
-        LED_SHOW_CROSS_PATTERN;  
-        break;
+    // switch (robot_status.color)
+    // {
+    // case color_red:
+    //     LED_BLUE_DISABLE;
+    //     LED_RED_ENABLE;
+    //     LED_SHOW_CROSS_PATTERN;  
+    //     break;
 
-    case color_blue:
-        LED_RED_DISABLE;
-        LED_BLUE_ENABLE;
-        LED_SHOW_CROSS_PATTERN;
-        break;
+    // case color_blue:
+    //     LED_RED_DISABLE;
+    //     LED_BLUE_ENABLE;
+    //     LED_SHOW_CROSS_PATTERN;
+    //     break;
 
-    case color_hit_red:
-        LED_BLUE_DISABLE;
-        LED_RED_ENABLE;
-        LED_SHUT_UP_CROSS_PATTERN;
-        //LED_Update();
-        break;
+    // case color_hit_red:
+    //     LED_BLUE_DISABLE;
+    //     LED_RED_ENABLE;
+    //     LED_SHUT_UP_CROSS_PATTERN;
+    //     //LED_Update();
+    //     break;
 
-    case color_hit_blue:
-        LED_RED_DISABLE;
-        LED_BLUE_ENABLE;
-        LED_SHUT_UP_CROSS_PATTERN;
-        //LED_Update();
-        break;
+    // case color_hit_blue:
+    //     LED_RED_DISABLE;
+    //     LED_BLUE_ENABLE;
+    //     LED_SHUT_UP_CROSS_PATTERN;
+    //     //LED_Update();
+    //     break;
 
-    case color_off:
-    default:
-        LED_RED_DISABLE;
-        LED_BLUE_DISABLE;
-        LED_SHUT_UP_CROSS_PATTERN;
-        robot_status.led_ctrl_mask=0x000; // 全部熄灭
-        break;
-    }
+    // case color_off:
+    // default:
+    //     LED_RED_DISABLE;
+    //     LED_BLUE_DISABLE;
+    //     LED_SHUT_UP_CROSS_PATTERN;
+    //     robot_status.led_ctrl_mask=0x000; // 全部熄灭
+    //     break;
+    // }
 
     //只有在从off切换到color_red或color_blue时，才会点亮全部指示灯
-    static light_color_enum last_color = color_off;
-    if (last_color == color_off && (robot_status.color == color_red || robot_status.color == color_blue)) {
-        robot_status.led_ctrl_mask = 0x3FF; // 点亮全部指示灯
-    }
-    last_color = robot_status.color;
+    // static light_color_enum last_color = color_off;
+    // if (last_color == color_off && (robot_status.color == color_red || robot_status.color == color_blue)) {
+    //     robot_status.led_ctrl_mask = 0x3FF; // 点亮全部指示灯
+    // }
+    // last_color = robot_status.color;
 
     // 2. 更新10个环的亮灭
     for(int i=0; i<10; i++) {

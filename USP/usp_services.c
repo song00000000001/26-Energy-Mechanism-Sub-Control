@@ -160,21 +160,21 @@ void Comm_Task(void)
             // 2. 更新全局状态
             robot_status.color = (light_color_enum)comm_buffers.CAN_RxMsg.Data[0];
             robot_status.active_groups = comm_buffers.CAN_RxMsg.Data[1];
-            robot_status.energy_state = (EnergySystemMode_t)comm_buffers.CAN_RxMsg.Data[2];
+            //comm_buffers.CAN_RxMsg.Data[2];
         }
     }
     // uart接收
-    if(comm_buffers.uart_rx_complete)
-    {
-        comm_buffers.uart_rx_complete=false;
-        // 1. 校验数据包
-        if (comm_buffers.uart_rx_buf[0] == PACKET_HEADER) {
-            // 2. 更新全局状态
-            robot_status.color = (light_color_enum)comm_buffers.uart_rx_buf[1];
-            robot_status.active_groups = comm_buffers.uart_rx_buf[2];
-            robot_status.energy_state = (EnergySystemMode_t)comm_buffers.uart_rx_buf[3];
-        }
-    }   
+    // if(comm_buffers.uart_rx_complete)
+    // {
+    //     comm_buffers.uart_rx_complete=false;
+    //     // 1. 校验数据包
+    //     if (comm_buffers.uart_rx_buf[0] == PACKET_HEADER) {
+    //         // 2. 更新全局状态
+    //         robot_status.color = (light_color_enum)comm_buffers.uart_rx_buf[1];
+    //         robot_status.active_groups = comm_buffers.uart_rx_buf[2];
+    //         //comm_buffers.uart_rx_buf[3];
+    //     }
+    // }   
 
     OBSERVE_TASK_END(OBSERVE_COMM_TASK);
 }

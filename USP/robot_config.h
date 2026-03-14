@@ -62,14 +62,13 @@ extern ADCBuffers_t adc_buffers;
 
 //机器人状态结构体
 typedef struct {
-    EnergySystemMode_t energy_state; // 能量状态
-    light_color_enum color;
     uint8_t active_groups; // 激活组数 0~5
     uint16_t led_ctrl_mask;    // 击打指示灯掩码
     Indicator_LED_t Ring_LEDs[10];
     uint8_t is_blue_team;  // 1: 蓝方, 0: 红方
     bool is_still_in_hit;
     HitState_t hit_state;
+    light_color_enum color;   // 当前颜色状态
 } RobotStatus_t;
 extern RobotStatus_t robot_status;
 

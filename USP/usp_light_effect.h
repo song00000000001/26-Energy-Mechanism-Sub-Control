@@ -24,46 +24,6 @@ typedef enum
     sub_arm_right
 }ligntarm_name_enum;
 
-typedef enum{
-    idle = 0,
-    small_energy,
-    big_energy,
-    success
-}EnergySystemMode_t;
-
-//检测击打状态转换
-typedef enum{
-    before_hit=0,
-    record_hit,
-    after_hit
-}HitState_t;
-
-//准备重构灯效控制逻辑，先定义一些枚举和结构体，方便后续使用
-#if 0
-typedef enum 
-{
-    main_arm_outside = 0,
-    main_arm_middle,
-    main_arm_inside,
-    sub_arm_left,
-    sub_arm_right
-}ligntarm_name_enum;
-
-typedef enum{
-    idle = 0,
-    small_energy,
-    big_energy,
-    success
-}EnergySystemMode_t;
-
-//检测击打状态转换
-typedef enum{
-    before_hit=0,
-    record_hit,
-    after_hit
-}HitState_t;
-
-#else
 
 //重构思路:
 //分控只管跟随状态变换控制灯效,而不涉及上层逻辑,即大小神符还是组数,都由主控判断后直接发送分控应该亮起什么灯效，我认为这样是更解耦的。
@@ -114,5 +74,3 @@ typedef enum {
 } LightEffectId_t;
 //灯效选择器,不一定用到,后续会直接改通信协议让主控直接发送灯效ID过来,分控只负责执行对应的灯效,这样更解耦一些
 LightEffectId_t UspLight_SelectEffect(uint8_t effect_id);
-
-#endif
