@@ -64,7 +64,6 @@ extern ADCBuffers_t adc_buffers;
 typedef struct {
     uint8_t active_groups; // 激活组数 0~5
     uint16_t led_ctrl_mask;    // 击打指示灯掩码
-    Indicator_LED_t Ring_LEDs[10];
     uint8_t is_blue_team;  // 1: 蓝方, 0: 红方
     bool is_still_in_hit;
     HitState_t hit_state;
@@ -107,7 +106,6 @@ extern debug_status_t debug_status;
 /* --- 函数接口 --- */
 void System_Tasks_Init(void);
 void System_Tasks_Run(void);
-void LED_Indicator_Task(void);
 void Comm_Task(void);
 
 

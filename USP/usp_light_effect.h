@@ -2,25 +2,15 @@
 
 #include "main.h"
 
-#define WS2812_ARM_COUNT    4       // 待控制的ws2812灯条数量,即pwm通道数量,目前设计为主灯臂用3路控5条+副灯臂用1路控2条,共5条,因为主灯臂图案左右对称，所以只需要3路就能控制5条了，剩下一路给副灯臂控制左右2条显示完全相同的矩形块即可。
-#define WS2312_LED_NUM      43      // 每条灯臂上的 WS2812 LED 数量,主侧灯臂刚好都是43颗长度。
-#define LEDS_PER_STAGE      9       // 每段包含的灯珠数 (45/5)
+
 
 typedef enum 
 {
     color_off = 0,
-    color_red=0,
+    color_red,
     color_blue,
 }light_color_enum;
 
-typedef enum 
-{
-    main_arm_outside = 0,
-    main_arm_middle,
-    main_arm_inside,
-    sub_arm_left,
-    sub_arm_right
-}ligntarm_name_enum;
 
 //重构思路:
 //分控只管跟随状态变换控制灯效,而不涉及上层逻辑,即大小神符还是组数,都由主控判断后直接发送分控应该亮起什么灯效，我认为这样是更解耦的。
@@ -45,5 +35,9 @@ typedef enum
 
 
 //后续会改通信协议让主控直接发送灯效ID过来,分控只负责执行对应的灯效
+//设置灯效
 void UspLight_Update(uint8_t effect_id);
+//设置颜色
 void UspLight_SetCurrentColor(uint8_t color_id);
+//设置组数阶段
+void UspLight_SetGroupStage(uint8_t stage);

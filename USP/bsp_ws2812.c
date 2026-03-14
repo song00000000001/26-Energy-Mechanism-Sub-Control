@@ -1,7 +1,10 @@
 #include "bsp_ws2812.h"
-#include "robot_config.h"
+
 #include "string.h"
 //30 + Num * 3 * 8 + 30
+#define WS2812_ARM_COUNT    4       // 待控制的ws2812灯条数量,即pwm通道数量,目前设计为主灯臂用3路控5条+副灯臂用1路控2条,共5条,因为主灯臂图案左右对称，所以只需要3路就能控制5条了，剩下一路给副灯臂控制左右2条显示完全相同的矩形块即可。
+#define WS2312_LED_NUM      43      // 每条灯臂上的 WS2812 LED 数量,主侧灯臂刚好都是43颗长度。
+#define LEDS_PER_STAGE      9       // 每段包含的灯珠数 (45/5)
 
 #define PWM_DATA_LEN (WS2312_LED_NUM * 24) // 每个WS2812需要24个码元
 #define WS2812_RESET_LEN 40 // 定义重置周期数（800KHz 下，1.25us/bit，40个0约 50us）
@@ -17,10 +20,20 @@
 #define arm_channel_3 TIM_CHANNEL_2 
 #define arm_channel_4 TIM_CHANNEL_3 
 
+typedef enum 
+{
+    main_arm_outside = 0,
+    main_arm_middle,
+    main_arm_inside,
+    sub_arm_left,
+    sub_arm_right
+}ligntarm_name_enum;
+
 // 4路PWM DMA数据缓存: [0,1,2]主灯臂, [3]左右灯臂
 static uint16_t tim_pwm_dma_buff[WS2812_ARM_COUNT][dma_data_len] = {0};//PWM DMA数据缓存
+static uint8_t temp_pixels[WS2312_LED_NUM * 3] = {0};//由于大量重复使用,单独拿出来作为全局变量,避免频繁在栈上分配过大的数组
 
-void Buff_translate(uint8_t* color_buff,uint16_t* dma_row_ptr) //颜色数组转换为码元数组
+void Buff_translate(uint8_t color_buff[],uint16_t* dma_row_ptr) //颜色数组转换为码元数组
 {   
     uint32_t dat_idx = 0;
 	for(uint32_t i = 0;i < (WS2312_LED_NUM*3);i++)
@@ -65,78 +78,31 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
     if(dma_status_flag>=2)
     {
         dma_status_flag=0;
-        OBSERVE_TASK_END(OBSERVE_PWM_DMA);
+        // 这里可以设置一个全局标志，通知主循环所有DMA传输已完成，可以安全更新下一帧数据了
     }
 }         
-/* --- 箭头显示优化配置 --- */
-// 如果觉得箭头太小或太稀疏，可以调整这两个值
-static uint8_t ARROW_STEP_LEN=2;   // 箭头每一级的灯珠数量（控制箭头大小）
-static uint8_t ARROW_GAP=6 ;  // 两个箭头之间的空隙灯珠数（控制间距）
 
-static uint16_t g_flow_offset = 1; // 全局流水偏移量
-
-//由于hit状态不需要流水灯和箭头效果，直接全部点亮即可
-void light_arm_fill_all(uint8_t r, uint8_t g, uint8_t b)
+//主灯臂流水灯效控制,输入RGB颜色值,根据当前组数阶段性亮起灯珠,并且让箭头图案流动起来
+void ws2812_main_arm_flow_effect(uint8_t r, uint8_t g, uint8_t b, uint8_t active_groups)
 {
-    uint8_t temp_pixels[WS2312_LED_NUM * 3] = {0};
+    /* --- 箭头显示优化配置 --- */
+    // 如果觉得箭头太小或太稀疏，可以调整这两个值
+    static uint8_t ARROW_STEP_LEN=2;    // 箭头每一级的灯珠数量（控制箭头大小）
+    static uint8_t ARROW_GAP=6 ;        // 两个箭头之间的空隙灯珠数（控制间距）
+    static uint16_t g_flow_offset = 1; // 流水偏移量
 
-    for (int i = 0; i < WS2312_LED_NUM; i++) 
-    {
-        temp_pixels[i * 3]     = g; // WS2812 典型为 GRB 顺序
-        temp_pixels[i * 3 + 1] = r;
-        temp_pixels[i * 3 + 2] = b;
-    }
-    // 将 RGB 数据转换为 PWM 码元
-    Buff_translate(temp_pixels, tim_pwm_dma_buff[0]);
-    Buff_translate(temp_pixels, tim_pwm_dma_buff[3]);
-    // 4. 非阻塞启动 4 路 DMA 传输
-    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂outside
-    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂middle
-    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂inside
-    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);//左右灯臂
-}
-
-void WS2812_Update_Task(void)
-{
-    OBSERVE_TASK_START(OBSERVE_WS2812_TASK);
-
-    LED_Indicator_Task();
-    // 1. 获取当前的全局颜色 (GRB顺序)
-    uint8_t r = 0, g = 0, b = 0;
-
-    // switch (robot_status.color)
-    // {
-    // case color_red:
-    //     r = 255;
-    //     break;
-    // case color_blue:
-    //     b = 255;
-    //     break;
-    // case color_hit_red:
-    //     r = 255;
-    //     light_arm_fill_all(r, g, b);
-    //     return;
-    // case color_hit_blue:
-    //     b = 255;
-    //     light_arm_fill_all(r, g, b);
-    //     return;
-    // case color_off:
-    // default:
-    //     r = 0; g = 0; b = 0;
-    //     break;
-    // }
-    // 2. 计算当前允许亮起的灯珠上限 (1~5组, 每组9颗)
-    uint8_t active_limit = robot_status.active_groups * LEDS_PER_STAGE;
+    // 1. 计算当前允许亮起的灯珠上限 (1~5组, 每组9颗)
+    uint8_t active_limit = active_groups * LEDS_PER_STAGE;
 
     // 3. 更新流动偏移量
     // arrow_period 是一个完整图案的长度
     uint16_t arrow_period = (3 * ARROW_STEP_LEN + ARROW_GAP);
     // 每次进入任务自增偏移。如果想减慢流动速度，可以加一个分频计数器。
     g_flow_offset = (g_flow_offset + 1) % arrow_period;
-#if 1
-    for (int arm_idx = 0; arm_idx < WS2812_ARM_COUNT; arm_idx++) 
+
+    for (int arm_idx = 0; arm_idx < WS2812_ARM_COUNT-1; arm_idx++) 
     {
-        uint8_t temp_pixels[WS2312_LED_NUM * 3] = {0};
+        memset(temp_pixels, 0, sizeof(temp_pixels)); // 每次更新前清零像素缓存
 
         for (int i = 0; i < WS2312_LED_NUM; i++) 
         {
@@ -184,72 +150,91 @@ void WS2812_Update_Task(void)
     }
 
     // 4. 非阻塞启动 5 路 DMA 传输
-    OBSERVE_TASK_START(OBSERVE_PWM_DMA);
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂outside
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);//主灯臂middle
     HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);//主灯臂inside
-    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);//左右灯臂
-#endif
-    OBSERVE_TASK_END(OBSERVE_WS2812_TASK);
 }
 
+//主灯臂全亮/灭控制,输入RGB颜色值,直接全亮或者全灭
+void ws2812_main_arm_full_effect(uint8_t r, uint8_t g, uint8_t b)
+{
+    memset(temp_pixels, 0, sizeof(temp_pixels)); // 每次更新前清零像素缓存
 
-static void LED_Update(void)
-{ //根据组数点亮对应指示灯，有5组，但是有10个灯，所以是间隔点亮，如果是1组，就点亮1，如果是2组，就点亮3，以此类推
-    robot_status.led_ctrl_mask=0x000; // 先全部熄灭
-    robot_status.led_ctrl_mask |= (1 << ((robot_status.active_groups * 2) - 1)) - 1;
-}
-
-// 灯板指示灯更新逻辑
-void LED_Indicator_Task(void) {
-
-    // 1. 设置颜色切换引脚 (红蓝切换)
-    // switch (robot_status.color)
-    // {
-    // case color_red:
-    //     LED_BLUE_DISABLE;
-    //     LED_RED_ENABLE;
-    //     LED_SHOW_CROSS_PATTERN;  
-    //     break;
-
-    // case color_blue:
-    //     LED_RED_DISABLE;
-    //     LED_BLUE_ENABLE;
-    //     LED_SHOW_CROSS_PATTERN;
-    //     break;
-
-    // case color_hit_red:
-    //     LED_BLUE_DISABLE;
-    //     LED_RED_ENABLE;
-    //     LED_SHUT_UP_CROSS_PATTERN;
-    //     //LED_Update();
-    //     break;
-
-    // case color_hit_blue:
-    //     LED_RED_DISABLE;
-    //     LED_BLUE_ENABLE;
-    //     LED_SHUT_UP_CROSS_PATTERN;
-    //     //LED_Update();
-    //     break;
-
-    // case color_off:
-    // default:
-    //     LED_RED_DISABLE;
-    //     LED_BLUE_DISABLE;
-    //     LED_SHUT_UP_CROSS_PATTERN;
-    //     robot_status.led_ctrl_mask=0x000; // 全部熄灭
-    //     break;
-    // }
-
-    //只有在从off切换到color_red或color_blue时，才会点亮全部指示灯
-    // static light_color_enum last_color = color_off;
-    // if (last_color == color_off && (robot_status.color == color_red || robot_status.color == color_blue)) {
-    //     robot_status.led_ctrl_mask = 0x3FF; // 点亮全部指示灯
-    // }
-    // last_color = robot_status.color;
-
-    // 2. 更新10个环的亮灭
-    for(int i=0; i<10; i++) {
-        HAL_GPIO_WritePin(robot_status.Ring_LEDs[i].port, robot_status.Ring_LEDs[i].pin, (robot_status.led_ctrl_mask >> i) & 0x01);
+    for (int i = 0; i < WS2312_LED_NUM; i++) 
+    {
+        temp_pixels[i * 3]     = g; // WS2812 典型为 GRB 顺序
+        temp_pixels[i * 3 + 1] = r;
+        temp_pixels[i * 3 + 2] = b;
     }
+    // 将 RGB 数据转换为 PWM 码元
+    Buff_translate(temp_pixels, tim_pwm_dma_buff[0]);
+    // 4. 非阻塞启动 4 路 DMA 传输
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂outside
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂middle
+    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂inside
+}
+
+//主灯臂阶段亮起矩形块控制,输入RGB颜色值和当前组数,根据当前组数阶段性亮起矩形块
+void ws2812_main_arm_stage_effect(uint8_t r, uint8_t g, uint8_t b, uint8_t active_groups)
+{
+    // 1. 计算当前允许亮起的灯珠上限 (1~5组, 每组9颗)
+    uint8_t active_limit = active_groups * LEDS_PER_STAGE;
+
+    memset(temp_pixels, 0, sizeof(temp_pixels)); // 每次更新前清零像素缓存
+
+    for (int i = 0; i < WS2312_LED_NUM; i++) 
+    {
+        if (i < active_limit) 
+        {
+            temp_pixels[i * 3]     = g; // WS2812 典型为 GRB 顺序
+            temp_pixels[i * 3 + 1] = r;
+            temp_pixels[i * 3 + 2] = b;
+        }
+    }
+    // 将 RGB 数据转换为 PWM 码元
+    Buff_translate(temp_pixels, tim_pwm_dma_buff[0]);
+    // 4. 非阻塞启动 4 路 DMA 传输
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂outside
+    HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂middle
+    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂inside
+}
+
+//副灯臂全亮/灭控制,输入RGB颜色值,直接全亮或者全灭
+void ws2812_sub_arm_full_effect(uint8_t r, uint8_t g, uint8_t b)
+{
+    memset(temp_pixels, 0, sizeof(temp_pixels)); // 每次更新前清零像素缓存
+
+    for (int i = 0; i < WS2312_LED_NUM; i++) 
+    {
+        temp_pixels[i * 3]     = g; // WS2812 典型为 GRB 顺序
+        temp_pixels[i * 3 + 1] = r;
+        temp_pixels[i * 3 + 2] = b;
+    }
+    // 将 RGB 数据转换为 PWM 码元
+    Buff_translate(temp_pixels, tim_pwm_dma_buff[3]);
+    // 非阻塞启动 DMA 传输
+    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);//左右灯臂
+}
+
+//副灯臂阶段亮起矩形块控制,输入RGB颜色值和当前组数,根据当前组数阶段性亮起矩形块
+void ws2812_sub_arm_stage_effect(uint8_t r, uint8_t g, uint8_t b, uint8_t active_groups)
+{
+    // 1. 计算当前允许亮起的灯珠上限 (1~5组, 每组9颗)
+    uint8_t active_limit = active_groups * LEDS_PER_STAGE;
+
+    memset(temp_pixels, 0, sizeof(temp_pixels)); // 每次更新前清零像素缓存
+
+    for (int i = 0; i < WS2312_LED_NUM; i++) 
+    {
+        if (i < active_limit) 
+        {
+            temp_pixels[i * 3]     = g; // WS2812 典型为 GRB 顺序
+            temp_pixels[i * 3 + 1] = r;
+            temp_pixels[i * 3 + 2] = b;
+        }
+    }
+    // 将 RGB 数据转换为 PWM 码元
+    Buff_translate(temp_pixels, tim_pwm_dma_buff[3]);
+    // 非阻塞启动 DMA 传输
+    HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_4, (uint32_t *)tim_pwm_dma_buff[3], dma_data_len);//左右灯臂
 }

@@ -1,24 +1,32 @@
 #include "usp_light_effect.h"
+#include "bsp_indicator_led.h"
+#include "bsp_ws2812.h"
 
 //灯板帧结构体
 typedef struct {
     light_color_enum color;   // 红 / 蓝 / 关
     uint16_t ring_mask;       // 10个环灯 bit0~bit9
     uint8_t cross_on;         // 是否显示瞄准图案
-    uint8_t group_stage;       // 当前组数阶段 0~5
 } IndicatorFrame_t;
 //灯臂帧结构体
+//主灯臂灯效枚举,包含流动箭头,阶段亮起的矩形块,全亮和全灭状态
 typedef enum {
-    ARM_ROLE_MAIN_OUTSIDE = 0,
-    ARM_ROLE_MAIN_MIDDLE,
-    ARM_ROLE_MAIN_INSIDE,
-    ARM_ROLE_SUB_LEFT,
-    ARM_ROLE_SUB_RIGHT,
-    ARM_ROLE_COUNT
-} LightArmRole_t;
-//逻辑映射表
+    MAIN_ARM_EFFECT_OFF = 0,
+    MAIN_ARM_EFFECT_FLOW,     // 流动箭头
+    MAIN_ARM_EFFECT_STAGE,    // 阶段亮起的矩形块
+    MAIN_ARM_EFFECT_FULL,     // 全亮
+} MainArmEffect_t;
+//副灯臂灯效枚举,包含阶段亮起,全亮和全灭状态
+typedef enum {
+    SUB_ARM_EFFECT_OFF = 0,
+    SUB_ARM_EFFECT_STAGE,     // 阶段亮起的矩形块
+    SUB_ARM_EFFECT_FULL,      // 全亮
+} SubArmEffect_t;
+//灯臂帧结构体
 typedef struct {
-    uint8_t rgb[WS2812_ARM_COUNT][WS2312_LED_NUM][3];
+    MainArmEffect_t main_effect; // 主灯臂效果
+    SubArmEffect_t sub_effect;   // 副灯臂效果
+    uint8_t group_stage;         // 当前组数阶段 0~5
 } ArmFrame_t;
 //灯效枚举
 typedef enum {
@@ -33,14 +41,45 @@ static light_color_enum usp_light_current_color = color_off; // 内部灯效，�
 static uint8_t usp_light_group_stage = 0; // 当前组数阶段，提供接口更新
 
 static uint16_t index_to_mask(uint8_t led_index);
-static void render_off(IndicatorFrame_t *ind,ArmFrame_t *arm);
-static void render_aiming(IndicatorFrame_t *ind,ArmFrame_t *arm);
-static void render_small_hit(IndicatorFrame_t *ind,ArmFrame_t *arm);
-static void render_big_stage(IndicatorFrame_t *ind,ArmFrame_t *arm);
-static void render_success(IndicatorFrame_t *ind,ArmFrame_t *arm);
+static void Indicator_Apply(IndicatorFrame_t *ind);
+static void WS2812_ApplyFrame(ArmFrame_t *arm_frame);
+static void render_off(IndicatorFrame_t *ind,ArmFrame_t *arm_frame);
+static void render_aiming(IndicatorFrame_t *ind,ArmFrame_t *arm_frame);
+static void render_small_hit(IndicatorFrame_t *ind,ArmFrame_t *arm_frame);
+static void render_big_stage(IndicatorFrame_t *ind,ArmFrame_t *arm_frame);
+static void render_success(IndicatorFrame_t *ind,ArmFrame_t *arm_frame);
 static LightEffectId_t UspLight_SelectEffect(uint8_t effect_id);
 
-#include "robot_config.h"
+void UspLight_SetCurrentColor(uint8_t color_id)
+{
+    usp_light_current_color = color_id;
+}
+
+void UspLight_SetGroupStage(uint8_t stage)
+{
+    usp_light_group_stage = stage;
+}
+
+void UspLight_Update(uint8_t effect_id)
+{
+    static  IndicatorFrame_t ind = {0};
+    static ArmFrame_t arm_frame = {0};
+
+    LightEffectId_t eff = UspLight_SelectEffect(effect_id);
+
+    switch (eff) {
+    case LIGHT_EFFECT_AIMING:    render_aiming(&ind, &arm_frame); break;
+    case LIGHT_EFFECT_SMALL_HIT: render_small_hit(&ind, &arm_frame); break;
+    case LIGHT_EFFECT_BIG_STAGE: render_big_stage(&ind, &arm_frame); break;
+    case LIGHT_EFFECT_SUCCESS:   render_success(&ind, &arm_frame); break;
+    case LIGHT_EFFECT_OFF:
+    default:                     render_off(&ind, &arm_frame); break;
+    }
+
+    Indicator_Apply(&ind);
+    WS2812_ApplyFrame(&arm_frame);
+}
+
 //根据灯索引返回对应的掩码,范围1~10
 static uint16_t index_to_mask(uint8_t led_index){
     led_index-=1; // 将1~10转换为0~9
@@ -53,47 +92,65 @@ static uint16_t index_to_mask(uint8_t led_index){
 static void Indicator_Apply(IndicatorFrame_t *ind)
 {
     // Implementation for applying indicator frame
-}
-
-static void WS2812_ApplyFrame(ArmFrame_t *arm)
-{
-    // Implementation for applying WS2812 frame
-}
-
-void UspLight_SetCurrentColor(uint8_t color_id)
-{
-    switch (color_id) {
-        case 0: usp_light_current_color = color_off; break;
-        case 1: usp_light_current_color = color_red; break;
-        case 2: usp_light_current_color = color_blue; break;
-        default: usp_light_current_color = color_off; break;
+    set_indicator_led_mask_and_update(ind->ring_mask);
+    switch (ind->color) {
+        case color_red:
+            set_indicator_color_red();
+            break;
+        case color_blue:
+            set_indicator_color_blue();
+            break;
+        case color_off:
+        default:
+            set_indicator_color_off();
+            break;
     }
 }
 
-void UspLight_SetGroupStage(uint8_t stage)
+static void WS2812_ApplyFrame(ArmFrame_t *arm_frame)
 {
-    usp_light_group_stage = stage;
-}
-
-void UspLight_Update(uint8_t effect_id)
-{
-    IndicatorFrame_t ind = {0};
-    ArmFrame_t arm = {0};
-
-    LightEffectId_t eff = UspLight_SelectEffect(effect_id);
-
-    switch (eff) {
-    case LIGHT_EFFECT_AIMING:    render_aiming(&ind, &arm); break;
-    case LIGHT_EFFECT_SMALL_HIT: render_small_hit(&ind, &arm); break;
-    case LIGHT_EFFECT_BIG_STAGE: render_big_stage(&ind, &arm); break;
-    case LIGHT_EFFECT_SUCCESS:   render_success(&ind, &arm); break;
-    case LIGHT_EFFECT_OFF:
-    default:                     render_off(&ind, &arm); break;
+    uint8_t r = 0, g = 0, b = 0;
+    switch (usp_light_current_color) {
+        case color_red: r = 255; break;
+        case color_blue: b = 255; break;
+        case color_off:
+        default: break;
+    }
+    switch (arm_frame->main_effect)
+    {
+    case MAIN_ARM_EFFECT_FLOW:
+        ws2812_main_arm_flow_effect(r, g, b, arm_frame->group_stage); // 根据当前颜色设置流动箭头颜色
+        break;
+    case MAIN_ARM_EFFECT_STAGE:
+        ws2812_main_arm_stage_effect(r, g, b, arm_frame->group_stage); // 根据当前颜色设置阶段亮起的矩形块颜色
+        break;
+    case MAIN_ARM_EFFECT_FULL:
+        ws2812_main_arm_full_effect(r, g, b); // 根据当前颜色设置主灯臂全亮颜色
+        break;
+    case MAIN_ARM_EFFECT_OFF:
+        ws2812_main_arm_full_effect(0, 0, 0); // 主灯臂全灭
+        break;
+    default:
+        break;
     }
 
-    Indicator_Apply(&ind);
-    WS2812_ApplyFrame(&arm);
+    switch (arm_frame->sub_effect)
+    {   
+    case SUB_ARM_EFFECT_STAGE:
+        ws2812_sub_arm_stage_effect(r, g, b, arm_frame->group_stage); // 根据当前颜色设置副灯臂阶段亮起的矩形块颜色
+        break;
+    case SUB_ARM_EFFECT_FULL:
+        ws2812_sub_arm_full_effect(r, g, b); // 根据当前颜色设置副灯臂全亮颜色
+        break;
+    case SUB_ARM_EFFECT_OFF:
+        ws2812_sub_arm_full_effect(0, 0, 0); // 副灯臂全灭
+        break;
+    default:
+        break;
+    }
+
 }
+
 
 static LightEffectId_t UspLight_SelectEffect(uint8_t effect_id)
 {
@@ -109,55 +166,46 @@ static LightEffectId_t UspLight_SelectEffect(uint8_t effect_id)
     }
 }
 
-static void render_off(IndicatorFrame_t *ind,ArmFrame_t *arm)
+static void render_off(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
 {
     ind->color = color_off;
     ind->cross_on = 0;
     ind->ring_mask = 0x000;   // 全灭
+    arm_frame->main_effect = MAIN_ARM_EFFECT_OFF;// 主灯臂全灭
+    arm_frame->sub_effect = SUB_ARM_EFFECT_OFF;// 副灯臂全灭
 }
 
-static void render_aiming(IndicatorFrame_t *ind,ArmFrame_t *arm)
+static void render_aiming(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
 {
     ind->color = usp_light_current_color;
-    ind->cross_on = 1;
-    ind->ring_mask = index_to_mask(1) | index_to_mask(6) | index_to_mask(8);
+    ind->cross_on = 1;// 显示瞄准图案
+    ind->ring_mask = index_to_mask(1) | index_to_mask(6) | index_to_mask(8);// 只亮第2环，第7环和第9环（1~10）
+    arm_frame->main_effect = MAIN_ARM_EFFECT_FLOW;// 主灯臂显示流动箭头图案
+    arm_frame->sub_effect = SUB_ARM_EFFECT_OFF;// 副灯臂熄灭
 }
 
-static void render_small_hit(IndicatorFrame_t *ind,ArmFrame_t *arm)
+static void render_small_hit(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
 {
     ind->color = usp_light_current_color;
     ind->cross_on = 0;
-    ind->ring_mask = index_to_mask(1);   // 只亮第1环
+    ind->ring_mask = index_to_mask(1);   // 只亮第1环,其他全灭(1~10)
+    arm_frame->main_effect = MAIN_ARM_EFFECT_OFF;// 主灯臂熄灭
+    arm_frame->sub_effect = SUB_ARM_EFFECT_OFF;// 副灯臂熄灭
 }
-static void render_big_stage(IndicatorFrame_t *ind,ArmFrame_t *arm)
+static void render_big_stage(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
 {
     ind->color = usp_light_current_color;
     ind->cross_on = 0;
     ind->ring_mask = 0x000;   // 灯板全部熄灭
-    ind->group_stage = usp_light_group_stage; // 主/侧灯臂跟随当前组数阶段性亮起矩形块
+    arm_frame->group_stage = usp_light_group_stage; // 主/侧灯臂跟随当前组数阶段性亮起矩形块
+    arm_frame->main_effect = MAIN_ARM_EFFECT_STAGE;// 主灯臂阶段亮起的矩形块
+    arm_frame->sub_effect = SUB_ARM_EFFECT_STAGE;// 副灯臂阶段亮起的矩形块
 }
-static void render_success(IndicatorFrame_t *ind,ArmFrame_t *arm)
+static void render_success(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
 {
     ind->color = usp_light_current_color;
     ind->cross_on = 0;
     ind->ring_mask = index_to_mask(8);   // 只亮第8环
-}
-typedef struct {
-    uint8_t reversed;
-} ArmPhysicalCfg_t;
-static ArmPhysicalCfg_t g_arm_cfg[ARM_ROLE_COUNT] = {
-    [ARM_ROLE_MAIN_OUTSIDE] = {.reversed = 1},
-    [ARM_ROLE_MAIN_MIDDLE] = {.reversed = 1},
-    [ARM_ROLE_MAIN_INSIDE] = {.reversed = 1},
-    [ARM_ROLE_SUB_LEFT] = {.reversed = 0},
-    [ARM_ROLE_SUB_RIGHT] = {.reversed = 0},
-};
-static uint16_t arm_map_index(uint8_t arm, uint16_t logical_idx)
-{
-    if(arm >= ARM_ROLE_COUNT) return 0; // 越界保护
-    if(logical_idx >= WS2312_LED_NUM) return 0; // 越界保护
-    if (g_arm_cfg[arm].reversed) {
-        return (WS2312_LED_NUM - 1 - logical_idx);
-    }
-    return logical_idx;
+    arm_frame->main_effect = MAIN_ARM_EFFECT_FULL;// 主灯臂全亮
+    arm_frame->sub_effect = SUB_ARM_EFFECT_FULL;// 副灯臂全亮
 }

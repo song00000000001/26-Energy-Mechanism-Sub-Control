@@ -14,18 +14,6 @@ C5
 C4
 */
 RobotStatus_t robot_status={
-    .Ring_LEDs={
-    {GPIOA, GPIO_PIN_8},//1环
-    {GPIOC, GPIO_PIN_7},
-    {GPIOB, GPIO_PIN_15},
-    {GPIOB, GPIO_PIN_14},
-    {GPIOB, GPIO_PIN_13},
-    {GPIOB, GPIO_PIN_12},
-    {GPIOB, GPIO_PIN_11},//7环,一直亮,有问题
-    {GPIOB, GPIO_PIN_10},
-    {GPIOC, GPIO_PIN_5},
-    {GPIOC, GPIO_PIN_4}
-    },
     .color=color_red,
     .active_groups=5,
     .led_ctrl_mask=0x3FF,
@@ -146,7 +134,7 @@ song
 void Comm_Task(void)
 {
     OBSERVE_TASK_START(OBSERVE_COMM_TASK);
-	  	WS2812_Update_Task();
+
     __HAL_TIM_SET_AUTORELOAD(&htim5, debug_status.tim5_counter); // 定时器5自动重装载值
 
     wave_send_2_uart();
