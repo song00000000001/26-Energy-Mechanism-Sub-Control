@@ -5,7 +5,13 @@
 #include "string.h"
 #include <stdbool.h>
 
-#include "comm_protocal.h"        
+static HitState_t hit_state=before_hit; // 当前击打状态
+
+WaveCapture_t wave_capture = { .state = WAVE_IDLE };
+
+const WaveCapture_t* Hit_GetWaveCapture(void) {
+    return &wave_capture;
+}
 /*todo
 song
 这里和通信有耦合,后续考虑通过信号量解耦,并在主循环来观察信号量操作通信
@@ -28,6 +34,15 @@ static ADCBuffers_t adc_buffers={
     .leave_debounce_count = 7, // 离开消抖延时
 };
 
+inline uint8_t Hit_Get_adc_pin_map_index(uint8_t hit_index){
+    if(hit_index < 10){
+        return adc_buffers.adc_pin_map[hit_index];
+    }
+    else{
+        return 0; // 默认返回第0路，实际使用时可以根据需求调整
+    }
+}
+
 // 初始化代码,将adcbuf提供给dma,并启动adc dma采样
 void Hit_Detection_Init(void) {
     if(HAL_ADCEx_Calibration_Start(&hadc1) != HAL_OK) {
@@ -38,12 +53,15 @@ void Hit_Detection_Init(void) {
     HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers.adc_raw, ADC_CHANNELS);
 }
 
-void hit_detection(WaveCapture_t *wave_capture, uint8_t *hit_index,uint8_t* hit_state,uint8_t debug_send_mode)
+void Hit_Detection(HitEvent_t *event)
 {
-    if (wave_capture->state == WAVE_READY_TO_SEND) {
+    if(event == NULL)
+        return;
+    
+    if (wave_capture.state == WAVE_READY_TO_SEND) {
         // 重置捕获状态机
-        wave_capture->state = WAVE_IDLE;
-        wave_capture->count_after_hit = 0;
+        wave_capture.state = WAVE_IDLE;
+        wave_capture.count_after_hit = 0;
          //比较出最大值的环
         uint32_t max_value=0;
         uint8_t max_index=0;
@@ -56,49 +74,48 @@ void hit_detection(WaveCapture_t *wave_capture, uint8_t *hit_index,uint8_t* hit_
         }
         // 更新击打掩码，只记录最大值对应的环
         if(max_value > (adc_buffers.HIT_THRESHOLD)*adc_buffers.HIT_CONFIRM_COUNT){
-            *hit_index = max_index; // 更新击打索引
-            can_send_hit_status(max_index); // 通过 CAN 发送击打状态
-            if(debug_send_mode==1){
-                vofa_send_hit_status(max_index, adc_buffers.adc_pin_map[max_index]); // 通过 VOFA+ 发送击打状态
-            }
-            else if(debug_send_mode==2){
-                uart_send_hit_status(max_index); // 通过 UART 发送击打状态
-            }
+            event->pending = 1;
+            event->hit_index = max_index;
+            event->adc_pin_map_index = adc_buffers.adc_pin_map[max_index];\
+            hit_state = before_hit; // 击打事件已生成，重置状态机准备下一次检测
         }
-        *hit_state=before_hit;
     }
-
+    else{
+        event->pending = 0;
+        event->hit_index = 0xFF; // 无效索引
+        event->adc_pin_map_index = 0xFF; // 无效索引
+    }
 }
 
 
 // 击打判定逻辑 (31us检查一次)
-void Hit_Logic_Task(WaveCapture_t *wave_capture, uint16_t *hit_mask, uint8_t* hit_state) {
+void Hit_Logic_Task() {
     static uint8_t leave_count = 0; // 离开消抖计数
     static bool is_still_in_hit=false; // 是否仍在击打中
-    if (wave_capture->state != WAVE_READY_TO_SEND) {
+    if (wave_capture.state != WAVE_READY_TO_SEND) {
         // 将当前的10路数据拷贝进环形缓冲
-        memcpy(wave_capture->buffer[wave_capture->write_ptr], 
+        memcpy(wave_capture.buffer[wave_capture.write_ptr], 
                adc_buffers.adc_raw, ADC_CHANNELS * sizeof(uint16_t));
                
         // 指针循环移动
-        uint16_t last_ptr = wave_capture->write_ptr;
-        wave_capture->write_ptr = (wave_capture->write_ptr + 1) % WAVE_BUFF_SIZE;
+        uint16_t last_ptr = wave_capture.write_ptr;
+        wave_capture.write_ptr = (wave_capture.write_ptr + 1) % WAVE_BUFF_SIZE;
 
         // --- 2. 状态机逻辑与触发判定 ---     
-        switch (robot_status.hit_state)
+        switch (hit_state)
         {
             case before_hit:
                 //如果有一个超过阈值,就跳转到记录击打状态
                 for(int i = 0; i < 10; i++) {
                     // 若有击打计数器累计超过阈值的，认为有击中情况。
                     if (adc_buffers.adc_raw[adc_buffers.adc_pin_map[i]] > adc_buffers.HIT_THRESHOLD) {
-                        robot_status.hit_state=record_hit;
+                        hit_state=record_hit;
                         leave_count = 0;
                         // 触发点记录：当前位置即为触发时刻
-                        if (wave_capture->state == WAVE_IDLE) {
-                            wave_capture->trigger_ptr = last_ptr;
-                            wave_capture->state = WAVE_CAPTURING;
-                            wave_capture->count_after_hit = 0;
+                        if (wave_capture.state == WAVE_IDLE) {
+                            wave_capture.trigger_ptr = last_ptr;
+                            wave_capture.state = WAVE_CAPTURING;
+                            wave_capture.count_after_hit = 0;
                         }
                         break;
                     }
@@ -119,7 +136,7 @@ void Hit_Logic_Task(WaveCapture_t *wave_capture, uint16_t *hit_mask, uint8_t* hi
                     // 松开消抖,连续7次30us=210us检测到无信号才结束
                     leave_count++;
                     if(leave_count >= adc_buffers.leave_debounce_count){ 
-                        robot_status.hit_state = after_hit;
+                        hit_state = after_hit;
                     }
                 }
                 else
@@ -130,11 +147,11 @@ void Hit_Logic_Task(WaveCapture_t *wave_capture, uint16_t *hit_mask, uint8_t* hi
             //等待通信任务结算击打状态后，准备下一次击打检测
             case after_hit:
                 // 如果处于捕获状态，计数
-                if (wave_capture->state == WAVE_CAPTURING) {
-                    wave_capture->count_after_hit++;
+                if (wave_capture.state == WAVE_CAPTURING) {
+                    wave_capture.count_after_hit++;
                     // 录满剩余的窗口
-                    if (wave_capture->count_after_hit >= (AFTER_HIT_SAMPLES)) {
-                        wave_capture->state = WAVE_READY_TO_SEND;
+                    if (wave_capture.count_after_hit >= (AFTER_HIT_SAMPLES)) {
+                        wave_capture.state = WAVE_READY_TO_SEND;
                     }
                 }
 
@@ -145,11 +162,3 @@ void Hit_Logic_Task(WaveCapture_t *wave_capture, uint16_t *hit_mask, uint8_t* hi
 
 }
 
-//定时器5中断回调
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-    if (htim->Instance == TIM5) {
-        //OBSERVE_TASK_START(OBSERVE_HIT_LOGIC_TASK);
-        //Hit_Logic_Task();
-        //OBSERVE_TASK_END(OBSERVE_HIT_LOGIC_TASK);
-    }
-}

@@ -28,11 +28,16 @@ Task_t SystemTasks[] = {
 void all_light_effect_control_task(uint8_t effect_id, uint8_t color_id, uint8_t active_groups)
 {
     // OBSERVE_TASK_START(OBSERVE_ALL_LIGHT_EFFECT_TASK);
-    UspLight_Update(effect_id);
+    // 先设置灯效id
     UspLight_SetCurrentColor(color_id);
+    // 再设置组数阶段
     UspLight_SetGroupStage(active_groups);
+    // 最后更新灯效显示
+    UspLight_Update(effect_id);
     // OBSERVE_TASK_END(OBSERVE_ALL_LIGHT_EFFECT_TASK);
 }
+
+static HitEvent_t hit_event = {0};
 
 void Comm_Task(void)
 {
@@ -56,6 +61,24 @@ void Comm_Task(void)
     // can接收
     can_receive_process(&robot_status.color, &robot_status.group_stage);
 
+    Hit_Detection(&hit_event);
+    if(hit_event.pending){
+        robot_status.hit_index=hit_event.hit_index;
+        uint8_t max_index=hit_event.hit_index;
+        if(max_index!=0xFF){
+            can_send_hit_status(max_index); // 通过 CAN 发送击打状态
+            if(debug_status.adc_10_send_enable==1){
+                vofa_send_hit_status(max_index,Hit_Get_adc_pin_map_index(max_index),Hit_GetWaveCapture()->trigger_ptr,Hit_GetWaveCapture()->buffer); // 通过 VOFA+ 发送击打状态
+            }
+            else if(debug_status.adc_10_send_enable==2){
+                uart_send_hit_status(max_index); // 通过 UART 发送击打状态
+            }
+        }
+    }
+    else{
+        robot_status.hit_index=0xFF; // 无效索引
+    }
+    
     //OBSERVE_TASK_END(OBSERVE_COMM_TASK);
 }
 
@@ -107,3 +130,12 @@ void System_Tasks_Run(void) {
     } 
 }
 #endif
+
+//定时器5中断回调
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+    if (htim->Instance == TIM5) {
+        //OBSERVE_TASK_START(OBSERVE_HIT_LOGIC_TASK);
+        Hit_Logic_Task();
+        //OBSERVE_TASK_END(OBSERVE_HIT_LOGIC_TASK);
+    }
+}

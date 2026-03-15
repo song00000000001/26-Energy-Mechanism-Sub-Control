@@ -34,8 +34,6 @@ static CommBuffers_t comm_buffers={
     .uart_rx_complete=false
 };
 
-WaveCapture_t wave_capture = { .state = WAVE_IDLE };
-
 // 定义发送缓冲区：100帧 * 每帧(40字节数据 + 4字节结尾) = 4400 字节
 VofaFrame_t vofa_tx_buf[WAVE_BUFF_SIZE];
 void vofa_frame_tail_init(void) {
@@ -70,9 +68,10 @@ void can_send_hit_status(uint8_t hit_index){
 
 //vofa发送接口,只需要一个索引输入方便调试观察
 //第二个参数需要输入adc_buffers.adc_pin_map[ch]映射表
-void vofa_send_hit_status(uint8_t hit_index,uint8_t adc_pin_map_index){
+void vofa_send_hit_status(uint8_t hit_index,uint8_t adc_pin_map_index,uint16_t trigger_ptr, uint16_t const buffer[133][10])
+{
     // 计算起始点 (触发点前 1ms)
-    int16_t start_idx = (int16_t)wave_capture.trigger_ptr - PRE_HIT_SAMPLES;
+    int16_t start_idx = trigger_ptr - PRE_HIT_SAMPLES;
     while (start_idx < 0) start_idx += WAVE_BUFF_SIZE;
     // 填充 VOFA+ 帧
     for (int i = 0; i < WAVE_BUFF_SIZE; i++) {
@@ -80,7 +79,7 @@ void vofa_send_hit_status(uint8_t hit_index,uint8_t adc_pin_map_index){
         
         // 转换 10 路数据为 float
         for (int ch = 0; ch < 10; ch++) {
-            vofa_tx_buf[i].fdata[ch] = (float)wave_capture.buffer[curr_idx][adc_pin_map_index]; 
+            vofa_tx_buf[i].fdata[ch] = (float)buffer[curr_idx][adc_pin_map_index]; 
         }
     }
     //为方便观察,把第一组和最后一组数据改成环数+1的负数乘以100,即-100,-200,...-1000
