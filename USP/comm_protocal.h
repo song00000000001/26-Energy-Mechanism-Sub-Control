@@ -1,7 +1,7 @@
 #pragma once
 
 #include "main.h"
-
+#include "robot_config.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -14,7 +14,12 @@ void can_receive_process(uint8_t *light_effect_id, uint8_t *color, uint8_t *acti
 //can发送击打状态到主控,参数是被击打的环的索引
 void can_send_hit_status(uint8_t hit_index);
 //串口发送击打波形到vofa调试电脑
-void vofa_send_hit_status(uint8_t hit_index,uint8_t adc_pin_map_index,uint16_t trigger_ptr, uint16_t const buffer[133][10]);
+void vofa_send_hit_status(
+    uint8_t hit_index,
+    uint8_t adc_pin_map_index,
+    uint16_t trigger_ptr,
+    const uint16_t buffer[WAVE_BUFF_SIZE][ADC_CHANNELS]
+);
 //串口发送击打状态到调试电脑,参数是被击打的环的索引
 void uart_send_hit_status(uint8_t hit_index);
 
