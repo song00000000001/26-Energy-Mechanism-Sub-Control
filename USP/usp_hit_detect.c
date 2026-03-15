@@ -1,0 +1,155 @@
+#include "usp_hit_detect.h"
+
+#include "adc.h"
+
+#include "string.h"
+#include <stdbool.h>
+
+#include "comm_protocal.h"        
+/*todo
+song
+这里和通信有耦合,后续考虑通过信号量解耦,并在主循环来观察信号量操作通信
+*/
+
+//adc原始数据缓冲区和击打计数器结构体
+typedef struct {
+    uint16_t adc_raw[10]; // DMA 自动填充的原始数据
+    uint32_t hit_counters[10]; // 击打确认计数器
+    uint16_t HIT_THRESHOLD;  // ADC 击打判定阈值 (根据实际压力调整)
+    uint16_t HIT_CONFIRM_COUNT;        // 连续N次采样超过阈值则认为击打
+    uint8_t  adc_pin_map[10]; // ADC引脚到指示灯环的映射表
+    uint8_t leave_debounce_count; // 离开消抖延时
+} ADCBuffers_t;
+
+static ADCBuffers_t adc_buffers={
+    .HIT_THRESHOLD = 700,  // ADC 击打判定阈值 (根据实际压力调整)
+    .HIT_CONFIRM_COUNT = 2,        // 连续N次采样超过阈值则认为击打
+    .adc_pin_map = {9, 4, 8, 7, 6, 0, 1, 2, 3,5}, // 映射表，根据实际连线调整
+    .leave_debounce_count = 7, // 离开消抖延时
+};
+
+// 初始化代码,将adcbuf提供给dma,并启动adc dma采样
+void Hit_Detection_Init(void) {
+    if(HAL_ADCEx_Calibration_Start(&hadc1) != HAL_OK) {
+        // 校准失败处理
+        Error_Handler();
+    }
+    // 启动 ADC DMA 循环采样，直接将数据写入 adc_buffers.adc_raw
+    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffers.adc_raw, ADC_CHANNELS);
+}
+
+void hit_detection(WaveCapture_t *wave_capture, uint8_t *hit_index,uint8_t* hit_state,uint8_t debug_send_mode)
+{
+    if (wave_capture->state == WAVE_READY_TO_SEND) {
+        // 重置捕获状态机
+        wave_capture->state = WAVE_IDLE;
+        wave_capture->count_after_hit = 0;
+         //比较出最大值的环
+        uint32_t max_value=0;
+        uint8_t max_index=0;
+        for(int i = 0; i <10; i++){
+            if(adc_buffers.hit_counters[i]>max_value){
+                max_value=adc_buffers.hit_counters[i];
+                max_index=i;
+            }
+            adc_buffers.hit_counters[i] = 0;
+        }
+        // 更新击打掩码，只记录最大值对应的环
+        if(max_value > (adc_buffers.HIT_THRESHOLD)*adc_buffers.HIT_CONFIRM_COUNT){
+            *hit_index = max_index; // 更新击打索引
+            can_send_hit_status(max_index); // 通过 CAN 发送击打状态
+            if(debug_send_mode==1){
+                vofa_send_hit_status(max_index, adc_buffers.adc_pin_map[max_index]); // 通过 VOFA+ 发送击打状态
+            }
+            else if(debug_send_mode==2){
+                uart_send_hit_status(max_index); // 通过 UART 发送击打状态
+            }
+        }
+        *hit_state=before_hit;
+    }
+
+}
+
+
+// 击打判定逻辑 (31us检查一次)
+void Hit_Logic_Task(WaveCapture_t *wave_capture, uint16_t *hit_mask, uint8_t* hit_state) {
+    static uint8_t leave_count = 0; // 离开消抖计数
+    static bool is_still_in_hit=false; // 是否仍在击打中
+    if (wave_capture->state != WAVE_READY_TO_SEND) {
+        // 将当前的10路数据拷贝进环形缓冲
+        memcpy(wave_capture->buffer[wave_capture->write_ptr], 
+               adc_buffers.adc_raw, ADC_CHANNELS * sizeof(uint16_t));
+               
+        // 指针循环移动
+        uint16_t last_ptr = wave_capture->write_ptr;
+        wave_capture->write_ptr = (wave_capture->write_ptr + 1) % WAVE_BUFF_SIZE;
+
+        // --- 2. 状态机逻辑与触发判定 ---     
+        switch (robot_status.hit_state)
+        {
+            case before_hit:
+                //如果有一个超过阈值,就跳转到记录击打状态
+                for(int i = 0; i < 10; i++) {
+                    // 若有击打计数器累计超过阈值的，认为有击中情况。
+                    if (adc_buffers.adc_raw[adc_buffers.adc_pin_map[i]] > adc_buffers.HIT_THRESHOLD) {
+                        robot_status.hit_state=record_hit;
+                        leave_count = 0;
+                        // 触发点记录：当前位置即为触发时刻
+                        if (wave_capture->state == WAVE_IDLE) {
+                            wave_capture->trigger_ptr = last_ptr;
+                            wave_capture->state = WAVE_CAPTURING;
+                            wave_capture->count_after_hit = 0;
+                        }
+                        break;
+                    }
+                }
+            break;
+
+            case record_hit:
+            {
+                //记录击打数据，如果10个都没超过阈值，说明击打结束，跳转到击打后状态
+                is_still_in_hit=false;
+                for(int i = 0; i < 10; i++) {
+                    if (adc_buffers.adc_raw[adc_buffers.adc_pin_map[i]] > adc_buffers.HIT_THRESHOLD)  {
+                        adc_buffers.hit_counters[i]+=adc_buffers.adc_raw[adc_buffers.adc_pin_map[i]];// 超过阈值，记录adc值累加到计数器
+                        is_still_in_hit=true;
+                    }
+                }
+                if(!is_still_in_hit){
+                    // 松开消抖,连续7次30us=210us检测到无信号才结束
+                    leave_count++;
+                    if(leave_count >= adc_buffers.leave_debounce_count){ 
+                        robot_status.hit_state = after_hit;
+                    }
+                }
+                else
+                    leave_count = 0;
+            }
+            break;
+
+            //等待通信任务结算击打状态后，准备下一次击打检测
+            case after_hit:
+                // 如果处于捕获状态，计数
+                if (wave_capture->state == WAVE_CAPTURING) {
+                    wave_capture->count_after_hit++;
+                    // 录满剩余的窗口
+                    if (wave_capture->count_after_hit >= (AFTER_HIT_SAMPLES)) {
+                        wave_capture->state = WAVE_READY_TO_SEND;
+                    }
+                }
+
+            default:
+                break;
+        }
+    }
+
+}
+
+//定时器5中断回调
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+    if (htim->Instance == TIM5) {
+        //OBSERVE_TASK_START(OBSERVE_HIT_LOGIC_TASK);
+        //Hit_Logic_Task();
+        //OBSERVE_TASK_END(OBSERVE_HIT_LOGIC_TASK);
+    }
+}

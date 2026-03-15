@@ -2,15 +2,12 @@
 
 #include "main.h"
 
-
-
 typedef enum 
 {
     color_off = 0,
     color_red,
     color_blue,
 }light_color_enum;
-
 
 //重构思路:
 //分控只管跟随状态变换控制灯效,而不涉及上层逻辑,即大小神符还是组数,都由主控判断后直接发送分控应该亮起什么灯效，我认为这样是更解耦的。

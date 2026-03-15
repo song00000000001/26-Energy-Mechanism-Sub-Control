@@ -6,6 +6,20 @@ typedef struct {
     uint16_t pin;
 } Indicator_LED_t;
 
+// 10个指示环的GPIO端口和引脚配置，
+/*更新：
+A8
+C7
+B15
+B14
+B13
+B12
+B11
+B10
+C5
+C4
+*/
+
 static Indicator_LED_t Ring_LEDs[10] = {
     {GPIOA, GPIO_PIN_8},//1环
     {GPIOC, GPIO_PIN_7},

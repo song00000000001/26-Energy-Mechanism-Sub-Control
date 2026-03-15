@@ -28,7 +28,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "robot_config.h"
-#include "resistive_screen.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -100,11 +100,9 @@ int main(void)
   MX_CAN_Init();
   MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
-    HAL_ADCEx_Calibration_Start(&hadc1);    //AD校准
-   // HAL_Delay(200);
+    
     System_Tasks_Init();
-    //HAL_Delay(200);
-    HAL_TIM_Base_Start_IT(&htim5);
+    
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -170,14 +168,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-//定时器5中断回调
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-    if (htim->Instance == TIM5) {
-        OBSERVE_TASK_START(OBSERVE_HIT_LOGIC_TASK);
-        Hit_Logic_Task();
-        OBSERVE_TASK_END(OBSERVE_HIT_LOGIC_TASK);
-    }
-}
+
 /* USER CODE END 4 */
 
 /**
