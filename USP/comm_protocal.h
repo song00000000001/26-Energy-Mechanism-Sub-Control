@@ -10,7 +10,7 @@ extern "C" {
 void user_can_init(void);
 void vofa_frame_tail_init(void);
 //can接收主控的控制指令,更新全局状态
-void can_receive_process(uint8_t *color, uint8_t *active_groups);
+void can_receive_process(uint8_t *light_effect_id, uint8_t *color, uint8_t *active_groups);
 //can发送击打状态到主控,参数是被击打的环的索引
 void can_send_hit_status(uint8_t hit_index);
 //串口发送击打波形到vofa调试电脑

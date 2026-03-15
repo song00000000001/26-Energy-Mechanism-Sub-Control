@@ -37,46 +37,42 @@ void all_light_effect_control_task(uint8_t effect_id, uint8_t color_id, uint8_t 
     // OBSERVE_TASK_END(OBSERVE_ALL_LIGHT_EFFECT_TASK);
 }
 
-static HitEvent_t hit_event = {0};
+
 
 void Comm_Task(void)
 {
     //OBSERVE_TASK_START(OBSERVE_COMM_TASK);
+    
+    static HitEvent_t hit_event = {0};
 
-    /*todo
-    song
-    优化成事件驱动的方式,即接收数据后直接处理,而不是等到定时任务来处理,这样可以更快地响应控制指令的变化,同时也能减少不必要的处理。
-    现在先实现功能,后续再优化成事件驱动的方式。
-    */
+    /*--- 动态调整adc采样频率 ---*/
+    // 定时器5自动重装载值，用于动态调整tim5定时器中断任务周期，以调整adc采样频率，调试时观察cpu负载，debug测试功能，稳定后注释掉。
+    __HAL_TIM_SET_AUTORELOAD(&htim5, debug_status.tim5_counter); 
+
+    /*--- 接收控制指令数据 ---*/
+    // can接收
+    can_receive_process(&robot_status.effect_id, &robot_status.color, &robot_status.group_stage);
+
+    /*--- 控制灯效 ---*/
     //利用全局状态变量来控制灯效,每次接收控制指令后更新全局状态,然后在定时任务中根据全局状态来控制灯效显示。
     all_light_effect_control_task(robot_status.effect_id, robot_status.color, robot_status.group_stage);
-    __HAL_TIM_SET_AUTORELOAD(&htim5, debug_status.tim5_counter); // 定时器5自动重装载值，用于动态调整tim5定时器中断任务周期，以调整adc采样频率，调试时观察cpu负载，debug测试功能，稳定后注释掉。
-
     
     /*--- 判断击打状态变化,发送击打状态数据 ---*/
     // 检测是否发生击打,如果发生,则将击打前后的10路adc采样数据通过串口发送到调试电脑观察波形,同时将击打状态通过can发送给主控。
-
-   
-    /*--- 接收控制指令数据 ---*/
-    // can接收
-    can_receive_process(&robot_status.color, &robot_status.group_stage);
-
     Hit_Detection(&hit_event);
     if(hit_event.pending){
-        robot_status.hit_index=hit_event.hit_index;
         uint8_t max_index=hit_event.hit_index;
         if(max_index!=0xFF){
-            can_send_hit_status(max_index); // 通过 CAN 发送击打状态
+            // 通过 CAN 发送击打状态到主控
+            can_send_hit_status(max_index); 
+            // 通过 UART 发送击打状态到调试电脑
             if(debug_status.adc_10_send_enable==1){
                 vofa_send_hit_status(max_index,Hit_Get_adc_pin_map_index(max_index),Hit_GetWaveCapture()->trigger_ptr,Hit_GetWaveCapture()->buffer); // 通过 VOFA+ 发送击打状态
             }
             else if(debug_status.adc_10_send_enable==2){
-                uart_send_hit_status(max_index); // 通过 UART 发送击打状态
+                uart_send_hit_status(max_index); 
             }
         }
-    }
-    else{
-        robot_status.hit_index=0xFF; // 无效索引
     }
     
     //OBSERVE_TASK_END(OBSERVE_COMM_TASK);

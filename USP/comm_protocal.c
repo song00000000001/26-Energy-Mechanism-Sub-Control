@@ -7,6 +7,8 @@
 #include "can.h"
 #include "drv_can.h"
 
+#define can_rx_dlc 3
+
 // VOFA+ JustFloat 帧结构体
 #pragma pack(1) // 确保结构体按1字节对齐，没有填充
 typedef struct {
@@ -104,15 +106,16 @@ void uart_send_hit_status(uint8_t hit_index){
 // 处理can接收数据函数,放在定时任务里,也可以放在回调函数里,放在回调函数里可以更快地响应控制指令的变化,但会增加回调函数的复杂度,现在先放在定时任务里,后续再优化成事件驱动的方式。
 // 由于分层解耦的设计，打算修改方式，该函数应该返回一个数据让定时任务来调用，而不是直接在函数里修改全局状态，这样可以更好地控制数据流和状态更新的时机，避免在回调函数里直接修改全局状态可能带来的线程安全问题，同时也能更清晰地看到数据是如何流动和被处理的。
 
-void can_receive_process(uint8_t *color, uint8_t *active_groups){
+void can_receive_process(uint8_t *light_effect_id, uint8_t *color, uint8_t *active_groups){
     /*--- 3. 接收控制指令数据 ---*/
     // can接收
     if(comm_buffers.can_rx_complete)
     {
         comm_buffers.can_rx_complete=false;
-        if (comm_buffers.CAN_RxMsg.ID == (CAN_RECEIVE_ID_BASE+sub_ctrl_id) && comm_buffers.CAN_RxMsg.DLC == 3) {
-            *color = comm_buffers.CAN_RxMsg.Data[0];
-            *active_groups = comm_buffers.CAN_RxMsg.Data[1];
+        if (comm_buffers.CAN_RxMsg.ID == (CAN_RECEIVE_ID_BASE+sub_ctrl_id) && comm_buffers.CAN_RxMsg.DLC == can_rx_dlc) {
+            *light_effect_id = comm_buffers.CAN_RxMsg.Data[0];
+            *color = comm_buffers.CAN_RxMsg.Data[1];
+            *active_groups = comm_buffers.CAN_RxMsg.Data[2];
         }
     }
 }
