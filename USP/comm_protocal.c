@@ -3,6 +3,7 @@
 #include "stdbool.h"
 #include "usart.h"
 #include "can.h"
+#include "usp_hit_detect.h"
 
 #define can_rx_dlc 3
 
@@ -67,7 +68,7 @@ void can_send_hit_status(uint8_t hit_index){
 
 //vofa发送接口,只需要一个索引输入方便调试观察
 //第二个参数需要输入adc_buffers.adc_pin_map[ch]映射表
-void vofa_send_hit_status(uint8_t hit_index,uint8_t adc_pin_map_index,uint16_t trigger_ptr, const uint16_t buffer[WAVE_BUFF_SIZE][ADC_CHANNELS])
+void vofa_send_hit_status(uint8_t hit_index,uint16_t trigger_ptr, const uint16_t buffer[WAVE_BUFF_SIZE][ADC_CHANNELS])
 {
     // 计算起始点 (触发点前 1ms)
     int16_t start_idx = trigger_ptr - PRE_HIT_SAMPLES;
@@ -78,7 +79,7 @@ void vofa_send_hit_status(uint8_t hit_index,uint8_t adc_pin_map_index,uint16_t t
         
         // 转换 10 路数据为 float
         for (int ch = 0; ch < 10; ch++) {
-            vofa_tx_buf[i].fdata[ch] = (float)buffer[curr_idx][adc_pin_map_index]; 
+            vofa_tx_buf[i].fdata[ch] = (float)buffer[curr_idx][Hit_Get_adc_pin_map_index(ch)]; // 根据映射表获取正确的 ADC 数据
         }
     }
     //为方便观察,把第一组和最后一组数据改成环数+1的负数乘以100,即-100,-200,...-1000

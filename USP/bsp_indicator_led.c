@@ -62,13 +62,14 @@ void set_indicator_led_mask(uint16_t new_mask) {
 }
 // 2. 设置颜色
 void set_indicator_color_blue() {
-    LED_BLUE_DISABLE;
-    LED_RED_ENABLE;
+    LED_RED_DISABLE;
+    LED_BLUE_ENABLE;
+    
 }
 
 void set_indicator_color_red() {
-    LED_RED_DISABLE;
-    LED_BLUE_ENABLE;
+    LED_BLUE_DISABLE;
+    LED_RED_ENABLE;
 }
 
 void set_indicator_color_off() {

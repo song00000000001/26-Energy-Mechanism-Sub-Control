@@ -2,11 +2,11 @@
 
 #include "main.h"
 #include "robot_config.h"  
-
 typedef struct {
     uint8_t pending;
     uint8_t hit_index;
     uint8_t adc_pin_map_index;
+    uint16_t trigger_ptr;
 } HitEvent_t;
 
 void Hit_Detection_Init(void);

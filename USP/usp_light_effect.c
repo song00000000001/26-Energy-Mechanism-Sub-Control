@@ -105,6 +105,11 @@ static void Indicator_Apply(IndicatorFrame_t *ind)
             set_indicator_color_off();
             break;
     }
+    if (ind->cross_on) {
+    show_cross_pattern();
+    } else {
+        shut_up_cross_pattern();
+    }
 }
 
 static void WS2812_ApplyFrame(ArmFrame_t *arm_frame)

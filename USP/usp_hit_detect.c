@@ -57,7 +57,9 @@ void Hit_Detection(HitEvent_t *event)
 {
     if(event == NULL)
         return;
-    
+        
+    event->trigger_ptr = wave_capture.trigger_ptr;
+
     if (wave_capture.state == WAVE_READY_TO_SEND) {
         // 重置捕获状态机
         wave_capture.state = WAVE_IDLE;
@@ -76,9 +78,14 @@ void Hit_Detection(HitEvent_t *event)
         if(max_value > (adc_buffers.HIT_THRESHOLD)*adc_buffers.HIT_CONFIRM_COUNT){
             event->pending = 1;
             event->hit_index = max_index;
-            event->adc_pin_map_index = adc_buffers.adc_pin_map[max_index];\
-            hit_state = before_hit; // 击打事件已生成，重置状态机准备下一次检测
+            event->adc_pin_map_index = adc_buffers.adc_pin_map[max_index];
         }
+        else{
+            event->pending = 0;
+            event->hit_index = 0xFF; // 无效索引
+            event->adc_pin_map_index = 0xFF; // 无效索引 
+        }
+        hit_state = before_hit; // 重置状态机准备下一次检测
     }
     else{
         event->pending = 0;

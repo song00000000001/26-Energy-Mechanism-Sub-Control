@@ -67,7 +67,7 @@ void Comm_Task(void)
             can_send_hit_status(max_index); 
             // 通过 UART 发送击打状态到调试电脑
             if(debug_status.adc_10_send_enable==1){
-                vofa_send_hit_status(max_index,Hit_Get_adc_pin_map_index(max_index),Hit_GetWaveCapture()->trigger_ptr,Hit_GetWaveCapture()->buffer); // 通过 VOFA+ 发送击打状态
+                vofa_send_hit_status(max_index,hit_event.trigger_ptr,Hit_GetWaveCapture()->buffer); // 通过 VOFA+ 发送击打状态
             }
             else if(debug_status.adc_10_send_enable==2){
                 uart_send_hit_status(max_index); 
