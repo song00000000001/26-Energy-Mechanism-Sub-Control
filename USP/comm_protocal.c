@@ -113,11 +113,9 @@ void can_receive_process(uint8_t *light_effect_id, uint8_t *color, uint8_t *acti
     if(comm_buffers.can_rx_complete)
     {
         comm_buffers.can_rx_complete=false;
-        if (comm_buffers.CAN_RxMsg.ID == (CAN_RECEIVE_ID_BASE+sub_ctrl_id) && comm_buffers.CAN_RxMsg.DLC == CONTROL_CMD_DLC) {
-            *light_effect_id = comm_buffers.CAN_RxMsg.Data[0];
-            *color = comm_buffers.CAN_RxMsg.Data[1];
-            *active_groups = comm_buffers.CAN_RxMsg.Data[2];
-        }
+        *light_effect_id = comm_buffers.CAN_RxMsg.Data[0];
+        *color = comm_buffers.CAN_RxMsg.Data[1];
+        *active_groups = comm_buffers.CAN_RxMsg.Data[2];
     }
 }
     
@@ -126,8 +124,13 @@ void can_receive_process(uint8_t *light_effect_id, uint8_t *color, uint8_t *acti
 void User_CAN1_RxCpltCallback(CAN_COB *CAN_RxCOB)
 {
     //拷贝接收到的数据
-    memcpy(&comm_buffers.CAN_RxMsg, CAN_RxCOB, sizeof(CAN_COB));
-    comm_buffers.can_rx_complete=true;
+    //目前存在信息风暴问题,分控来不及收到属于自己的包就被后续的包覆盖了
+    //这里直接在中断增加了一个判断,只有当收到的包的ID和预设的分控ID匹配时才拷贝数据并设置完成标志,其他包直接丢弃不处理,这样就不会存在信息风暴问题了。
+    //并且考虑增加简易互斥锁
+	if (CAN_RxCOB->ID == (CAN_RECEIVE_ID_BASE+sub_ctrl_id) && CAN_RxCOB->DLC == CONTROL_CMD_DLC) {
+        memcpy(&comm_buffers.CAN_RxMsg, CAN_RxCOB, sizeof(CAN_COB));
+        comm_buffers.can_rx_complete=true;
+    }
 }
 
 // 串口发送完成回调
