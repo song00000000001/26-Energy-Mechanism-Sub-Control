@@ -1,7 +1,10 @@
 #pragma once
 
 #include "main.h"
-#include "robot_config.h"  
+#include "robot_config.h" 
+
+#define HIT_INVALID_INDEX   0xFF
+
 typedef struct {
     uint8_t pending;
     uint8_t hit_index;
@@ -18,4 +21,4 @@ void Hit_Detection(HitEvent_t *event);
 /* 给通信层调试发波形时读取波形数据 */
 //增加一个只读波形访问接口，后面通信发 VOFA 不需要再持有全局 wave_capture
 const WaveCapture_t* Hit_GetWaveCapture(void);
-uint8_t Hit_Get_adc_pin_map_index(uint8_t hit_index);
+uint8_t Hit_Map_Ring_To_AdcChannel(uint8_t hit_index);

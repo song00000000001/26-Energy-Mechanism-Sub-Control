@@ -1,6 +1,7 @@
 #include "usp_light_effect.h"
 #include "bsp_indicator_led.h"
 #include "bsp_ws2812.h"
+#include "robot_config.h"
 
 //灯板帧结构体
 typedef struct {
@@ -52,7 +53,16 @@ static LightEffectId_t UspLight_SelectEffect(uint8_t effect_id);
 
 void UspLight_SetCurrentColor(uint8_t color_id)
 {
-    usp_light_current_color = color_id;
+    switch (color_id) {
+    case color_red:
+    case color_blue:
+    case color_off:
+        usp_light_current_color = (light_color_enum)color_id;
+        break;
+    default:
+        usp_light_current_color = color_off;
+        break;
+    }
 }
 
 void UspLight_SetGroupStage(uint8_t stage)
@@ -82,8 +92,8 @@ void UspLight_Update(uint8_t effect_id)
 
 //根据灯索引返回对应的掩码,范围1~10
 static uint16_t index_to_mask(uint8_t led_index){
-    led_index-=1; // 将1~10转换为0~9
-    if (led_index < 10) {
+    led_index-=1; // 将1~10转换为0~9,整个项目都使用0~9,只有这里是1~10
+    if (led_index < ADC_CHANNELS) {
         return (uint16_t)(1 << led_index);
     }
     return 0;
@@ -91,8 +101,18 @@ static uint16_t index_to_mask(uint8_t led_index){
 
 static void Indicator_Apply(IndicatorFrame_t *ind)
 {
-    // Implementation for applying indicator frame
+    //为防止闪烁,先关颜色,再设置图案,最后开颜色
+    //先关闭颜色
+    set_indicator_color_off();
+    
+    //设置指示灯状态掩码
     set_indicator_led_mask_and_update(ind->ring_mask);
+    if (ind->cross_on) {
+        show_cross_pattern();
+    } else {
+        shut_up_cross_pattern();
+    }
+    //打开颜色
     switch (ind->color) {
         case color_red:
             set_indicator_color_red();
@@ -104,11 +124,6 @@ static void Indicator_Apply(IndicatorFrame_t *ind)
         default:
             set_indicator_color_off();
             break;
-    }
-    if (ind->cross_on) {
-    show_cross_pattern();
-    } else {
-        shut_up_cross_pattern();
     }
 }
 

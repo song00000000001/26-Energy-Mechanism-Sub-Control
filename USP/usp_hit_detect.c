@@ -1,13 +1,21 @@
 #include "usp_hit_detect.h"
 
+
 #include "adc.h"
 
 #include "string.h"
 #include <stdbool.h>
 
+//检测击打状态转换
+typedef enum{
+    before_hit=0,
+    record_hit,
+    after_hit
+}HitState_t;
+
 static HitState_t hit_state=before_hit; // 当前击打状态
 
-WaveCapture_t wave_capture = { .state = WAVE_IDLE };
+static WaveCapture_t wave_capture = { .state = WAVE_IDLE };
 
 const WaveCapture_t* Hit_GetWaveCapture(void) {
     return &wave_capture;
@@ -19,11 +27,11 @@ song
 
 //adc原始数据缓冲区和击打计数器结构体
 typedef struct {
-    uint16_t adc_raw[10]; // DMA 自动填充的原始数据
-    uint32_t hit_counters[10]; // 击打确认计数器
+    uint16_t adc_raw[ADC_CHANNELS]; // DMA 自动填充的原始数据
+    uint32_t hit_counters[ADC_CHANNELS]; // 击打确认计数器
     uint16_t HIT_THRESHOLD;  // ADC 击打判定阈值 (根据实际压力调整)
     uint16_t HIT_CONFIRM_COUNT;        // 连续N次采样超过阈值则认为击打
-    uint8_t  adc_pin_map[10]; // ADC引脚到指示灯环的映射表
+    uint8_t  adc_pin_map[ADC_CHANNELS]; // ADC引脚到指示灯环的映射表
     uint8_t leave_debounce_count; // 离开消抖延时
 } ADCBuffers_t;
 
@@ -34,8 +42,8 @@ static ADCBuffers_t adc_buffers={
     .leave_debounce_count = 7, // 离开消抖延时
 };
 
-inline uint8_t Hit_Get_adc_pin_map_index(uint8_t hit_index){
-    if(hit_index < 10){
+inline uint8_t Hit_Map_Ring_To_AdcChannel(uint8_t hit_index){
+    if(hit_index < ADC_CHANNELS){
         return adc_buffers.adc_pin_map[hit_index];
     }
     else{
@@ -67,7 +75,7 @@ void Hit_Detection(HitEvent_t *event)
          //比较出最大值的环
         uint32_t max_value=0;
         uint8_t max_index=0;
-        for(int i = 0; i <10; i++){
+        for(int i = 0; i <ADC_CHANNELS; i++){
             if(adc_buffers.hit_counters[i]>max_value){
                 max_value=adc_buffers.hit_counters[i];
                 max_index=i;
@@ -82,15 +90,15 @@ void Hit_Detection(HitEvent_t *event)
         }
         else{
             event->pending = 0;
-            event->hit_index = 0xFF; // 无效索引
-            event->adc_pin_map_index = 0xFF; // 无效索引 
+            event->hit_index = HIT_INVALID_INDEX; // 无效索引
+            event->adc_pin_map_index = HIT_INVALID_INDEX; // 无效索引 
         }
         hit_state = before_hit; // 重置状态机准备下一次检测
     }
     else{
         event->pending = 0;
-        event->hit_index = 0xFF; // 无效索引
-        event->adc_pin_map_index = 0xFF; // 无效索引
+        event->hit_index = HIT_INVALID_INDEX; // 无效索引
+        event->adc_pin_map_index = HIT_INVALID_INDEX; // 无效索引
     }
 }
 
@@ -113,7 +121,7 @@ void Hit_Logic_Task() {
         {
             case before_hit:
                 //如果有一个超过阈值,就跳转到记录击打状态
-                for(int i = 0; i < 10; i++) {
+                for(int i = 0; i < ADC_CHANNELS; i++) {
                     // 若有击打计数器累计超过阈值的，认为有击中情况。
                     if (adc_buffers.adc_raw[adc_buffers.adc_pin_map[i]] > adc_buffers.HIT_THRESHOLD) {
                         hit_state=record_hit;
@@ -133,7 +141,7 @@ void Hit_Logic_Task() {
             {
                 //记录击打数据，如果10个都没超过阈值，说明击打结束，跳转到击打后状态
                 is_still_in_hit=false;
-                for(int i = 0; i < 10; i++) {
+                for(int i = 0; i < ADC_CHANNELS; i++) {
                     if (adc_buffers.adc_raw[adc_buffers.adc_pin_map[i]] > adc_buffers.HIT_THRESHOLD)  {
                         adc_buffers.hit_counters[i]+=adc_buffers.adc_raw[adc_buffers.adc_pin_map[i]];// 超过阈值，记录adc值累加到计数器
                         is_still_in_hit=true;

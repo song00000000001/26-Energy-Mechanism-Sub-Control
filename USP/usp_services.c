@@ -10,7 +10,6 @@ RobotStatus_t robot_status={
     .color=color_red,
     .group_stage=5,
     .hit_index=0,
-    .hit_state=before_hit,
     .effect_id=0
 };
 	
@@ -37,7 +36,24 @@ void all_light_effect_control_task(uint8_t effect_id, uint8_t color_id, uint8_t 
     // OBSERVE_TASK_END(OBSERVE_ALL_LIGHT_EFFECT_TASK);
 }
 
+static void handle_hit_event(const HitEvent_t *event);
 
+static void handle_hit_event(const HitEvent_t *event){
+    if(event->pending){
+        uint8_t max_index=event->hit_index;
+        if(max_index<10){ // 有效击打索引范围0~9
+            // 通过 CAN 发送击打状态到主控
+            can_send_hit_status(max_index); 
+            // 通过 UART 发送击打状态到调试电脑
+            if(debug_status.adc_10_send_enable==1){
+                vofa_send_hit_status(max_index,event->trigger_ptr,Hit_GetWaveCapture()->buffer); // 通过 VOFA+ 发送击打状态
+            }
+            else if(debug_status.adc_10_send_enable==2){
+                uart_send_hit_status(max_index); 
+            }
+        }
+    }
+}
 
 void Comm_Task(void)
 {
@@ -60,21 +76,8 @@ void Comm_Task(void)
     /*--- 判断击打状态变化,发送击打状态数据 ---*/
     // 检测是否发生击打,如果发生,则将击打前后的10路adc采样数据通过串口发送到调试电脑观察波形,同时将击打状态通过can发送给主控。
     Hit_Detection(&hit_event);
-    if(hit_event.pending){
-        uint8_t max_index=hit_event.hit_index;
-        if(max_index!=0xFF){
-            // 通过 CAN 发送击打状态到主控
-            can_send_hit_status(max_index); 
-            // 通过 UART 发送击打状态到调试电脑
-            if(debug_status.adc_10_send_enable==1){
-                vofa_send_hit_status(max_index,hit_event.trigger_ptr,Hit_GetWaveCapture()->buffer); // 通过 VOFA+ 发送击打状态
-            }
-            else if(debug_status.adc_10_send_enable==2){
-                uart_send_hit_status(max_index); 
-            }
-        }
-    }
-    
+    handle_hit_event(&hit_event);
+
     //OBSERVE_TASK_END(OBSERVE_COMM_TASK);
 }
 

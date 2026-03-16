@@ -5,7 +5,7 @@
 #include "can.h"
 #include "usp_hit_detect.h"
 
-#define can_rx_dlc 3
+#define CONTROL_CMD_DLC 3
 
 // VOFA+ JustFloat 帧结构体
 #pragma pack(1) // 确保结构体按1字节对齐，没有填充
@@ -45,14 +45,6 @@ void vofa_frame_tail_init(void) {
     }
 }
 
-//下面的函数实现了击打检测，如果检测到击打，就通过CAN发送击打状态，并根据调试配置选择是否发送10路ADC数据到调试电脑
-//目前击打检测和通信耦合较深，后续考虑优化一下，把击打检测和通信分离开来，这样可以更清晰地职责划分，同时也方便后续维护和扩展。
-void hit_detection_and_transmission(uint16_t *hit_mask,uint8_t* hit_state)
-{
-   
-
-}
-
 //can发送接口,只需要发被击打的环的索引就行了
 void can_send_hit_status(uint8_t hit_index){
     comm_buffers.CAN_TxMsg.IdType = Can_STDID;
@@ -63,7 +55,9 @@ void can_send_hit_status(uint8_t hit_index){
     comm_buffers.free_can_mailbox = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
     /* Avoid the unused warning*/
     UNUSED(&comm_buffers.free_can_mailbox);
-    CANx_SendData(1, &comm_buffers.CAN_TxMsg);
+    if (CANx_SendData(1, &comm_buffers.CAN_TxMsg) != CAN_SUCCESS) {
+        // 可选：记一个发送失败计数,或者设置一个标志位以便后续重试
+    }
 }
 
 //vofa发送接口,只需要一个索引输入方便调试观察
@@ -78,18 +72,27 @@ void vofa_send_hit_status(uint8_t hit_index,uint16_t trigger_ptr, const uint16_t
         uint16_t curr_idx = (start_idx + i) % WAVE_BUFF_SIZE;
         
         // 转换 10 路数据为 float
-        for (int ch = 0; ch < 10; ch++) {
-            vofa_tx_buf[i].fdata[ch] = (float)buffer[curr_idx][Hit_Get_adc_pin_map_index(ch)]; // 根据映射表获取正确的 ADC 数据
+        for (int ch = 0; ch < ADC_CHANNELS; ch++) {
+            vofa_tx_buf[i].fdata[ch] = (float)buffer[curr_idx][Hit_Map_Ring_To_AdcChannel(ch)]; // 根据映射表获取正确的 ADC 数据
         }
     }
     //为方便观察,把第一组和最后一组数据改成环数+1的负数乘以100,即-100,-200,...-1000
-    for(int ch=0;ch<10;ch++){
+    for(int ch=0;ch<ADC_CHANNELS;ch++){
         vofa_tx_buf[0].fdata[ch]=-100*(hit_index+1);
         vofa_tx_buf[WAVE_BUFF_SIZE-1].fdata[ch]=-100*(hit_index+1);
     }
     // 使用 DMA 一次性发出 4400 字节,波特率设为921600，这样发送过程大约只需 50ms,实测63ms
     // 要是用蓝牙模块只有115200的波特率，可能会消耗250ms
-    HAL_UART_Transmit_DMA(&huart3, (uint8_t*)vofa_tx_buf, sizeof(vofa_tx_buf));    
+    if (huart3.gState == HAL_UART_STATE_READY) {
+        if (HAL_UART_Transmit_DMA(&huart3, (uint8_t*)vofa_tx_buf, sizeof(vofa_tx_buf)) != HAL_OK) {
+            HAL_UART_Transmit(&huart3, (uint8_t*)"VOFA TX ERR\n", 12, HAL_MAX_DELAY);
+        }
+    }
+    else {
+        // 处理 UART 忙碌状态，例如记录日志或设置标志位以稍后重试
+        // 这里可以选择重试机制或者丢弃当前数据，根据实际需求决定
+    } 
+
 }
 
 //串口发送简易接口,发送被击打的环的索引,方便调试观察
@@ -110,7 +113,7 @@ void can_receive_process(uint8_t *light_effect_id, uint8_t *color, uint8_t *acti
     if(comm_buffers.can_rx_complete)
     {
         comm_buffers.can_rx_complete=false;
-        if (comm_buffers.CAN_RxMsg.ID == (CAN_RECEIVE_ID_BASE+sub_ctrl_id) && comm_buffers.CAN_RxMsg.DLC == can_rx_dlc) {
+        if (comm_buffers.CAN_RxMsg.ID == (CAN_RECEIVE_ID_BASE+sub_ctrl_id) && comm_buffers.CAN_RxMsg.DLC == CONTROL_CMD_DLC) {
             *light_effect_id = comm_buffers.CAN_RxMsg.Data[0];
             *color = comm_buffers.CAN_RxMsg.Data[1];
             *active_groups = comm_buffers.CAN_RxMsg.Data[2];

@@ -29,12 +29,6 @@
 #define PRE_HIT_SAMPLES     33   // 预留约 1ms 的前置数据
 #define AFTER_HIT_SAMPLES   33   // 预留约 1ms 的击打后数据
 
- //检测击打状态转换
-typedef enum{
-    before_hit=0,
-    record_hit,
-    after_hit
-}HitState_t;
 
 typedef enum {
     WAVE_IDLE = 0,      // 循环写入中
@@ -60,7 +54,6 @@ typedef struct {
 //机器人状态结构体
 typedef struct {
     uint8_t hit_index;      // 击打索引 0~9
-    HitState_t hit_state;
     uint8_t color;   // 当前颜色状态
     uint8_t effect_id;     // 当前灯效ID
     uint8_t group_stage;    // 当前组数阶段
