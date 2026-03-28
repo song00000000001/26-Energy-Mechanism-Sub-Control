@@ -100,7 +100,43 @@ int main(void)
   MX_CAN_Init();
   MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
-    
+      /*
+    {GPIOA, GPIO_PIN_8},//1环
+    {GPIOC, GPIO_PIN_7},
+    {GPIOB, GPIO_PIN_12},
+    {GPIOB, GPIO_PIN_13},
+    {GPIOB, GPIO_PIN_14},
+    {GPIOB, GPIO_PIN_15},
+    {GPIOB, GPIO_PIN_11},
+    {GPIOB, GPIO_PIN_10},
+    {GPIOC, GPIO_PIN_5},
+    {GPIOC, GPIO_PIN_4}
+    */
+    //测试代码,直接写10个灯珠的引脚,然后关闭,验证引脚连接和控制逻辑是否正确
+    #if 0
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET); // 红色控制引脚
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET); // 蓝色控制引脚
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET); // 1环
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET); // 1环灭
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET); // 2环
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET); // 2环灭
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET); // 3环 ,cuo
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET); // 3环灭
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET); // 4环
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_RESET); // 4环灭
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET); // 5环
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET); // 5环灭
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET); // 6环
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET); // 6环灭
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET); // 7环 , 3
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_RESET); // 7环灭
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET); // 8环 ,4
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET); // 8环灭
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5, GPIO_PIN_SET); // 9环,5
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5, GPIO_PIN_RESET); // 9环灭
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4, GPIO_PIN_SET); // 10环  , 6
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4, GPIO_PIN_RESET); // 10环灭 ,
+    #endif
     System_Tasks_Init();
     
   /* USER CODE END 2 */

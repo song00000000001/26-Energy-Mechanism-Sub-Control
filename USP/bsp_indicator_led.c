@@ -7,26 +7,14 @@ typedef struct {
 } Indicator_LED_t;
 
 // 10个指示环的GPIO端口和引脚配置，
-/*更新：
-A8
-C7
-B15
-B14
-B13
-B12
-B11
-B10
-C5
-C4
-*/
 
 static Indicator_LED_t Ring_LEDs[10] = {
     {GPIOA, GPIO_PIN_8},//1环
     {GPIOC, GPIO_PIN_7},
-    {GPIOB, GPIO_PIN_15},
-    {GPIOB, GPIO_PIN_14},
-    {GPIOB, GPIO_PIN_13},
     {GPIOB, GPIO_PIN_12},
+    {GPIOB, GPIO_PIN_13},
+    {GPIOB, GPIO_PIN_14},
+    {GPIOB, GPIO_PIN_15},
     {GPIOB, GPIO_PIN_11},
     {GPIOB, GPIO_PIN_10},
     {GPIOC, GPIO_PIN_5},
@@ -53,18 +41,12 @@ static Indicator_LED_t Ring_LEDs[10] = {
 #define LED_SHOW_CROSS_PATTERN HAL_GPIO_WritePin(LED_CROSS_CTRL_PORT, LED_CROSS_CTRL_PIN, GPIO_PIN_SET);
 #define LED_SHUT_UP_CROSS_PATTERN HAL_GPIO_WritePin(LED_CROSS_CTRL_PORT, LED_CROSS_CTRL_PIN, GPIO_PIN_RESET);
 
-static uint16_t indicator_mask = 0x000; // 10个环的状态掩码,1表示亮,0表示灭,初始全灭
-
 //底层接口,尽可能简单直接,不涉及任何逻辑判断,上层根据需要调用
-// 1. 设置指示灯状态掩码,每位对应一个环,1亮0灭
-void set_indicator_led_mask(uint16_t new_mask) {
-    indicator_mask = new_mask & 0x3FF; // 只保留低10位
-}
+
 // 2. 设置颜色
 void set_indicator_color_blue() {
     LED_RED_DISABLE;
     LED_BLUE_ENABLE;
-    
 }
 
 void set_indicator_color_red() {
@@ -75,6 +57,10 @@ void set_indicator_color_red() {
 void set_indicator_color_off() {
     LED_RED_DISABLE;
     LED_BLUE_DISABLE;
+    for(uint8_t i=0;i<10;i++){
+        HAL_GPIO_WritePin(Ring_LEDs[i].port, Ring_LEDs[i].pin, GPIO_PIN_RESET); // 关闭所有环
+    }
+    shut_up_cross_pattern(); // 颜色关闭时也关闭瞄准图案，确保完全熄灭
 }
 // 3. 设置瞄准图案显示/隐藏
 void show_cross_pattern() {
@@ -83,15 +69,13 @@ void show_cross_pattern() {
 void shut_up_cross_pattern() {
     LED_SHUT_UP_CROSS_PATTERN;
 }
+
 // 4. 更新10个环的亮灭状态,根据当前的indicator_mask来控制每个环的GPIO输出
-void update_indicator_leds(void) {
+void update_indicator_leds(uint16_t new_mask) {
+
+    new_mask &= 0x3FF; // 只保留低10位
     // 2. 更新10个环的亮灭
     for(int i=0; i<10; i++) {
-        HAL_GPIO_WritePin(Ring_LEDs[i].port, Ring_LEDs[i].pin, (indicator_mask >> i) & 0x01);
+        HAL_GPIO_WritePin(Ring_LEDs[i].port, Ring_LEDs[i].pin, (new_mask >> i) & 0x01);
     }
-}
-// 额外接口,直接输入掩码来更新状态,相当于上面更新掩码和更新环步骤的组合
-void set_indicator_led_mask_and_update(uint16_t new_mask) {
-    set_indicator_led_mask(new_mask);
-    update_indicator_leds();
 }

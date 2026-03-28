@@ -90,11 +90,11 @@ void UspLight_Update(uint8_t effect_id)
     WS2812_ApplyFrame(&arm_frame);
 }
 
-//根据灯索引返回对应的掩码,范围1~10
+//根据灯索引返回对应的掩码,范围0~9
 static uint16_t index_to_mask(uint8_t led_index){
-    led_index-=1; // 将1~10转换为0~9,整个项目都使用0~9,只有这里是1~10
+    uint16_t mask = 1 << led_index;
     if (led_index < ADC_CHANNELS) {
-        return (uint16_t)(1 << led_index);
+        return mask;
     }
     return 0;
 }
@@ -103,21 +103,27 @@ static void Indicator_Apply(IndicatorFrame_t *ind)
 {
     //为防止闪烁,先关颜色,再设置图案,最后开颜色
     //先关闭颜色
-    set_indicator_color_off();
-    
-    //设置指示灯状态掩码
-    set_indicator_led_mask_and_update(ind->ring_mask);
-    if (ind->cross_on) {
-        show_cross_pattern();
-    } else {
-        shut_up_cross_pattern();
-    }
+    //set_indicator_color_off();
     //打开颜色
     switch (ind->color) {
         case color_red:
+            //设置指示灯状态掩码
+            update_indicator_leds(ind->ring_mask);
+            if (ind->cross_on) {
+                show_cross_pattern();
+            } else {
+                shut_up_cross_pattern();
+            }
             set_indicator_color_red();
             break;
         case color_blue:
+            //设置指示灯状态掩码
+            update_indicator_leds(ind->ring_mask);
+            if (ind->cross_on) {
+                show_cross_pattern();
+            } else {
+                shut_up_cross_pattern();
+            }
             set_indicator_color_blue();
             break;
         case color_off:
@@ -199,7 +205,8 @@ static void render_aiming(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
 {
     ind->color = usp_light_current_color;
     ind->cross_on = 1;// 显示瞄准图案
-    ind->ring_mask = index_to_mask(1) | index_to_mask(6) | index_to_mask(8);// 只亮第2环，第7环和第9环（1~10）
+    ind->ring_mask = 0x000;
+    ind->ring_mask = index_to_mask(2) | index_to_mask(7) | index_to_mask(9);// 只亮第2环，第7环和第9环
     arm_frame->group_stage = usp_light_group_stage;
     arm_frame->main_effect = MAIN_ARM_EFFECT_FLOW;// 主灯臂显示流动箭头图案
     arm_frame->sub_effect = SUB_ARM_EFFECT_OFF;// 副灯臂熄灭
@@ -209,6 +216,7 @@ static void render_small_hit(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
 {
     ind->color = usp_light_current_color;
     ind->cross_on = 0;
+    ind->ring_mask = 0x000;
     ind->ring_mask = index_to_mask(1);   // 只亮第1环,其他全灭(1~10)
     arm_frame->main_effect = MAIN_ARM_EFFECT_OFF;// 主灯臂熄灭
     arm_frame->sub_effect = SUB_ARM_EFFECT_OFF;// 副灯臂熄灭
@@ -226,6 +234,7 @@ static void render_success(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
 {
     ind->color = usp_light_current_color;
     ind->cross_on = 0;
+    ind->ring_mask = 0x000;
     ind->ring_mask = index_to_mask(8);   // 只亮第8环
     arm_frame->main_effect = MAIN_ARM_EFFECT_FULL;// 主灯臂全亮
     arm_frame->sub_effect = SUB_ARM_EFFECT_FULL;// 副灯臂全亮
