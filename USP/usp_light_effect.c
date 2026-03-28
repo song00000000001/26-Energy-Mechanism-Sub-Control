@@ -281,14 +281,16 @@ void UspLight_OnHit(uint8_t ring_index)
 
 static void render_test_single(IndicatorFrame_t *ind, ArmFrame_t *arm_frame)
 {
+    static uint8_t test_group_stage = 0;
     ind->color = usp_light_current_color;
-    ind->cross_on = 0;
+    ind->cross_on = 1;
     ind->ring_mask = s_test_single_mask;
 
     // 为了测试更直观，灯臂给一个固定可见效果
-    arm_frame->group_stage = usp_light_group_stage;
-    arm_frame->main_effect = MAIN_ARM_EFFECT_FULL;
-    arm_frame->sub_effect  = SUB_ARM_EFFECT_FULL;
+    arm_frame->group_stage = test_group_stage%5+1;
+    test_group_stage++;
+    arm_frame->main_effect = MAIN_ARM_EFFECT_FLOW;
+    arm_frame->sub_effect  = SUB_ARM_EFFECT_STAGE;
 }
 
 static void render_test_accum(IndicatorFrame_t *ind, ArmFrame_t *arm_frame)

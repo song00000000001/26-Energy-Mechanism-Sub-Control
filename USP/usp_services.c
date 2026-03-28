@@ -7,10 +7,10 @@
 #include "usp_light_effect.h"
 
 RobotStatus_t robot_status={
-    .color=color_off,
-    .group_stage=0,
+    .color=color_red,
+    .group_stage=5,
     .hit_index=0,
-    .effect_id=0
+    .effect_id=5
 };
 	
 
