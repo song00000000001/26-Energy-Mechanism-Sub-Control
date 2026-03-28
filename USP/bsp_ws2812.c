@@ -95,67 +95,55 @@ uint16_t test_delay_max = 150;
 //主灯臂流水灯效控制,输入RGB颜色值,根据当前组数阶段性亮起灯珠,并且让箭头图案流动起来
 void ws2812_main_arm_flow_effect(uint8_t r, uint8_t g, uint8_t b, uint8_t active_groups)
 {
-    /* --- 箭头显示优化配置 --- */
-    // 如果觉得箭头太小或太稀疏，可以调整这两个值
-    static uint8_t ARROW_STEP_LEN=2;    // 箭头每一级的灯珠数量（控制箭头大小）
-    static uint8_t ARROW_GAP=6 ;        // 两个箭头之间的空隙灯珠数（控制间距）
-    static uint16_t g_flow_offset = 1; // 流水偏移量
+    static uint8_t ARROW_STEP_LEN = 2;    
+    static uint8_t ARROW_GAP = 6;        
+    static uint16_t g_flow_offset = 1; 
 
-    // 1. 计算当前允许亮起的灯珠上限 (1~5组, 每组9颗)
+    //刚发现箭头无需跟随组数变化，这里直接赋值
+	active_groups = 5;
+
     uint8_t active_limit = active_groups * LEDS_PER_STAGE;
-
-    // 3. 更新流动偏移量
-    // arrow_period 是一个完整图案的长度
     uint16_t arrow_period = (3 * ARROW_STEP_LEN + ARROW_GAP);
-    // 每次进入任务自增偏移。如果想减慢流动速度，可以加一个分频计数器。
+    
+    // 改变偏移增加方向或逻辑即可改变流动感
     g_flow_offset = (g_flow_offset + 1) % arrow_period;
 
-    for (int arm_idx = 0; arm_idx < WS2812_ARM_COUNT-1; arm_idx++) 
+    for (int arm_idx = 0; arm_idx < WS2812_ARM_COUNT - 1; arm_idx++) 
     {
-        memset(temp_pixels, 0, sizeof(temp_pixels)); // 每次更新前清零像素缓存
+        memset(temp_pixels, 0, sizeof(temp_pixels)); 
 
         for (int i = 0; i < WS2312_LED_NUM; i++) 
         {
-            // 阶段控制：只在激活范围内计算逻辑
-            if (i < active_limit) 
+            // --- 反转增长方向 ---
+            // 修改判断条件：只有索引在大端的灯珠才亮起
+            if (i >= (WS2312_LED_NUM - active_limit)) 
             {
                 int is_pixel_on = 0;
+                
+                // --- 反转流动与形状逻辑 ---
+                // 使用 (WS2312_LED_NUM - 1 - i) 代替 i，直接实现镜像映射
+                int reverse_i = WS2312_LED_NUM - 1 - i;
+                int local_pos = (reverse_i + arrow_period * 10 - g_flow_offset) % arrow_period;
 
-                if (arm_idx >= sub_arm_left) {
-                    // 副灯臂：保持全亮（矩形填充）
-                    is_pixel_on = 1; 
+                // --- 反转箭头指向 ---
+                // 调整 arm_idx 对应的 local_pos 区间，或直接镜像逻辑
+                if (arm_idx == main_arm_inside) { 
+                    if (local_pos >= 0 && local_pos < ARROW_STEP_LEN) is_pixel_on = 1;
                 } 
-                else {
-                    // 主灯臂：流水箭头逻辑
-                    // 修正后的 local_pos 计算：(i - offset) 随时间增加，会让图案向大索引方向（下移）流动
-                    // 加上 arrow_period * 10 是为了防止 i - offset 出现负数导致取模出错
-                    int local_pos = (i + arrow_period * 10 - g_flow_offset) % arrow_period;
-
-                    // --- 箭头指向修正逻辑 ---
-                    // 尖端在最前(Inside)，中间在后(Middle)，两翼最后(Outside) -> 形成 V 字指向下方
-                    // 如果发现指向还是反的，请互换下面的 arm_idx 判断条件
-                    if (arm_idx == main_arm_inside) { 
-                        if (local_pos >= 0 && local_pos < ARROW_STEP_LEN) 
-                            is_pixel_on = 1;
-                    } 
-                    else if (arm_idx == main_arm_middle) {
-                        if (local_pos >= ARROW_STEP_LEN && local_pos < 2 * ARROW_STEP_LEN) 
-                            is_pixel_on = 1;
-                    } 
-                    else if (arm_idx == main_arm_outside) {
-                        if (local_pos >= 2 * ARROW_STEP_LEN && local_pos < 3 * ARROW_STEP_LEN) 
-                            is_pixel_on = 1;
-                    }
+                else if (arm_idx == main_arm_middle) {
+                    if (local_pos >= ARROW_STEP_LEN && local_pos < 2 * ARROW_STEP_LEN) is_pixel_on = 1;
+                } 
+                else if (arm_idx == main_arm_outside) {
+                    if (local_pos >= 2 * ARROW_STEP_LEN && local_pos < 3 * ARROW_STEP_LEN) is_pixel_on = 1;
                 }
 
                 if (is_pixel_on) {
-                    temp_pixels[i * 3]     = g; // WS2812 典型为 GRB 顺序
+                    temp_pixels[i * 3]     = g; 
                     temp_pixels[i * 3 + 1] = r;
                     temp_pixels[i * 3 + 2] = b;
                 }
             }
         }
-        // 将 RGB 数据转换为 PWM 码元
         Buff_translate(temp_pixels, tim_pwm_dma_buff[arm_idx]);
     }
 
@@ -197,9 +185,10 @@ void ws2812_main_arm_stage_effect(uint8_t r, uint8_t g, uint8_t b, uint8_t activ
 
     for (int i = 0; i < WS2312_LED_NUM; i++) 
     {
-        if (i < active_limit) 
+        // 修改此处的判断逻辑：从末尾开始亮起
+        if (i >= (WS2312_LED_NUM - active_limit)) 
         {
-            temp_pixels[i * 3]     = g; // WS2812 典型为 GRB 顺序
+            temp_pixels[i * 3]     = g;
             temp_pixels[i * 3 + 1] = r;
             temp_pixels[i * 3 + 2] = b;
         }
@@ -241,7 +230,8 @@ void ws2812_sub_arm_stage_effect(uint8_t r, uint8_t g, uint8_t b, uint8_t active
 
     for (int i = 0; i < WS2312_LED_NUM; i++) 
     {
-        if (i < active_limit) 
+        // 修改此处的判断逻辑：从末尾开始亮起
+        if (i >= (WS2312_LED_NUM - active_limit)) 
         {
             temp_pixels[i * 3]     = g; // WS2812 典型为 GRB 顺序
             temp_pixels[i * 3 + 1] = r;
