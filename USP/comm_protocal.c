@@ -4,6 +4,7 @@
 #include "usart.h"
 #include "can.h"
 #include "usp_hit_detect.h"
+#include "usp_debug_monitor.h"
 
 #define CONTROL_CMD_DLC 3
 
@@ -101,6 +102,8 @@ void uart_send_hit_status(uint8_t hit_index){
     comm_buffers.uart_tx_buf[1] = 'S';
     comm_buffers.uart_tx_buf[2] = (char)(hit_index + '0'); // '0'~'9'
     comm_buffers.uart_tx_buf[3] = '\n';
+
+    OBSERVE_TASK_START(OBSERVE_UART_DMA);
     HAL_UART_Transmit_DMA(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf));
 }
 
@@ -136,7 +139,7 @@ void User_CAN1_RxCpltCallback(CAN_COB *CAN_RxCOB)
 // 串口发送完成回调
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART3) { 
-        //OBSERVE_TASK_END(OBSERVE_UART_DMA);
+        OBSERVE_TASK_END(OBSERVE_UART_DMA);
     }
 }
 

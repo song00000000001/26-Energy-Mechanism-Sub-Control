@@ -46,3 +46,8 @@ void UspLight_Update(uint8_t effect_id);
 void UspLight_SetCurrentColor(uint8_t color_id);
 //设置组数阶段
 void UspLight_SetGroupStage(uint8_t stage);
+
+// 测试模式下写入一次击打结果
+void UspLight_OnHit(uint8_t ring_index);
+// 退出测试模式或上电时清空测试状态
+void UspLight_ResetTestState(void);

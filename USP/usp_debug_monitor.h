@@ -5,7 +5,14 @@
 //调试观察结构体,可以通过修改 observe_task 来观察不同任务的执行时间
 typedef enum {
     OBSERVE_NONE = 0,
+    OBSERVE_COMM_TASK,              // 主调度里的通信任务
+    OBSERVE_ALL_LIGHT_EFFECT_TASK,  // 整体灯效刷新
+    OBSERVE_HIT_LOGIC_TASK,         // TIM5 中断里的击打判定
+    OBSERVE_UART_DMA,               // UART DMA 一次发送周期
+    OBSERVE_CAN_RX_CALLBACK,        // 可选：CAN接收回调
+    OBSERVE_HIT_DETECTION,          // 可选：Comm_Task里结算击打事件
 } ObserveTask_t;
+
 //调试状态结构体
 typedef struct {
     ObserveTask_t observe_task;// 当前观察的任务

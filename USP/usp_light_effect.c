@@ -36,10 +36,16 @@ typedef enum {
     LIGHT_EFFECT_SMALL_HIT,        // 小符击中后
     LIGHT_EFFECT_BIG_STAGE,        // 大符阶段/非待击打灯臂阶段态
     LIGHT_EFFECT_SUCCESS,          // 激活成功
+    LIGHT_EFFECT_TEST_SINGLE,   // 5: 单发覆盖测试
+    LIGHT_EFFECT_TEST_ACCUM,    // 6: 累积点亮测试
 } LightEffectId_t;
 
 static light_color_enum usp_light_current_color = color_off; // 内部灯效，提供接口更新
 static uint8_t usp_light_group_stage = 0; // 当前组数阶段，提供接口更新
+
+static uint16_t s_test_single_mask = 0;
+static uint16_t s_test_accum_mask  = 0;
+static uint8_t  s_last_hit_ring    = 0xFF;
 
 static uint16_t index_to_mask(uint8_t led_index);
 static void Indicator_Apply(IndicatorFrame_t *ind);
@@ -49,6 +55,8 @@ static void render_aiming(IndicatorFrame_t *ind,ArmFrame_t *arm_frame);
 static void render_small_hit(IndicatorFrame_t *ind,ArmFrame_t *arm_frame);
 static void render_big_stage(IndicatorFrame_t *ind,ArmFrame_t *arm_frame);
 static void render_success(IndicatorFrame_t *ind,ArmFrame_t *arm_frame);
+static void render_test_single(IndicatorFrame_t *ind, ArmFrame_t *arm_frame);
+static void render_test_accum(IndicatorFrame_t *ind, ArmFrame_t *arm_frame);
 static LightEffectId_t UspLight_SelectEffect(uint8_t effect_id);
 
 void UspLight_SetCurrentColor(uint8_t color_id)
@@ -72,18 +80,21 @@ void UspLight_SetGroupStage(uint8_t stage)
 
 void UspLight_Update(uint8_t effect_id)
 {
+
     IndicatorFrame_t ind = {0};
     ArmFrame_t arm_frame = {0};
     
     LightEffectId_t eff = UspLight_SelectEffect(effect_id);
 
     switch (eff) {
-    case LIGHT_EFFECT_AIMING:    render_aiming(&ind, &arm_frame); break;
-    case LIGHT_EFFECT_SMALL_HIT: render_small_hit(&ind, &arm_frame); break;
-    case LIGHT_EFFECT_BIG_STAGE: render_big_stage(&ind, &arm_frame); break;
-    case LIGHT_EFFECT_SUCCESS:   render_success(&ind, &arm_frame); break;
+    case LIGHT_EFFECT_AIMING:      render_aiming(&ind, &arm_frame); break;
+    case LIGHT_EFFECT_SMALL_HIT:   render_small_hit(&ind, &arm_frame); break;
+    case LIGHT_EFFECT_BIG_STAGE:   render_big_stage(&ind, &arm_frame); break;
+    case LIGHT_EFFECT_SUCCESS:     render_success(&ind, &arm_frame); break;
+    case LIGHT_EFFECT_TEST_SINGLE: render_test_single(&ind, &arm_frame); break;
+    case LIGHT_EFFECT_TEST_ACCUM:  render_test_accum(&ind, &arm_frame); break;
     case LIGHT_EFFECT_OFF:
-    default:                     render_off(&ind, &arm_frame); break;
+    default:                       render_off(&ind, &arm_frame); break;
     }
 
     Indicator_Apply(&ind);
@@ -238,4 +249,53 @@ static void render_success(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
     ind->ring_mask = index_to_mask(8);   // 只亮第8环
     arm_frame->main_effect = MAIN_ARM_EFFECT_FULL;// 主灯臂全亮
     arm_frame->sub_effect = SUB_ARM_EFFECT_FULL;// 副灯臂全亮
+}
+
+void UspLight_ResetTestState(void)
+{
+    s_test_single_mask = 0;
+    s_test_accum_mask  = 0;
+    s_last_hit_ring    = 0xFF;
+}
+
+void UspLight_OnHit(uint8_t ring_index)
+{
+    uint16_t mask = index_to_mask(ring_index);
+    if (mask == 0) {
+        return;
+    }
+
+    s_last_hit_ring = ring_index;
+
+    // 模式1：新的一发覆盖上一发
+    s_test_single_mask = mask;
+
+    // 模式2：累积点亮
+    s_test_accum_mask |= mask;
+    if ((s_test_accum_mask & 0x03FF) == 0x03FF) {
+        s_test_accum_mask = 0;
+    }
+}
+
+static void render_test_single(IndicatorFrame_t *ind, ArmFrame_t *arm_frame)
+{
+    ind->color = usp_light_current_color;
+    ind->cross_on = 0;
+    ind->ring_mask = s_test_single_mask;
+
+    // 为了测试更直观，灯臂给一个固定可见效果
+    arm_frame->group_stage = usp_light_group_stage;
+    arm_frame->main_effect = MAIN_ARM_EFFECT_FULL;
+    arm_frame->sub_effect  = SUB_ARM_EFFECT_FULL;
+}
+
+static void render_test_accum(IndicatorFrame_t *ind, ArmFrame_t *arm_frame)
+{
+    ind->color = usp_light_current_color;
+    ind->cross_on = 0;
+    ind->ring_mask = s_test_accum_mask;
+
+    arm_frame->group_stage = usp_light_group_stage;
+    arm_frame->main_effect = MAIN_ARM_EFFECT_FULL;
+    arm_frame->sub_effect  = SUB_ARM_EFFECT_FULL;
 }

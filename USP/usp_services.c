@@ -26,6 +26,17 @@ Task_t SystemTasks[] = {
 //总灯效控制任务,只需要输入灯效id，颜色和组数阶段，就能控制对应的灯效了,不需要再区分主副灯臂了,因为主控直接发送的就是最终的灯效状态了
 void all_light_effect_control_task(uint8_t effect_id, uint8_t color_id, uint8_t active_groups)
 {
+    OBSERVE_TASK_START(OBSERVE_ALL_LIGHT_EFFECT_TASK);
+
+    static uint8_t last_effect_id = 0xFF;
+
+    if (effect_id != last_effect_id) {
+        if ((effect_id == 5) || (effect_id == 6) || (last_effect_id == 5) || (last_effect_id == 6)) {
+            UspLight_ResetTestState();
+        }
+        last_effect_id = effect_id;
+    }
+
     // OBSERVE_TASK_START(OBSERVE_ALL_LIGHT_EFFECT_TASK);
     // 先设置灯效id
     UspLight_SetCurrentColor(color_id);
@@ -33,7 +44,7 @@ void all_light_effect_control_task(uint8_t effect_id, uint8_t color_id, uint8_t 
     UspLight_SetGroupStage(active_groups);
     // 最后更新灯效显示
     UspLight_Update(effect_id);
-    // OBSERVE_TASK_END(OBSERVE_ALL_LIGHT_EFFECT_TASK);
+    OBSERVE_TASK_END(OBSERVE_ALL_LIGHT_EFFECT_TASK);
 }
 
 static void handle_hit_event(const HitEvent_t *event);
@@ -42,6 +53,7 @@ static void handle_hit_event(const HitEvent_t *event){
     if(event->pending){
         uint8_t max_index=event->hit_index;
         if(max_index<10){ // 有效击打索引范围0~9
+            UspLight_OnHit(max_index); // 更新测试状态
             // 通过 CAN 发送击打状态到主控
             can_send_hit_status(max_index); 
             // 通过 UART 发送击打状态到调试电脑
@@ -57,7 +69,7 @@ static void handle_hit_event(const HitEvent_t *event){
 
 void Comm_Task(void)
 {
-    //OBSERVE_TASK_START(OBSERVE_COMM_TASK);
+    OBSERVE_TASK_START(OBSERVE_COMM_TASK);
     
     static HitEvent_t hit_event = {0};
 
@@ -69,16 +81,16 @@ void Comm_Task(void)
     // can接收
     can_receive_process(&robot_status.effect_id, &robot_status.color, &robot_status.group_stage);
 
-    /*--- 控制灯效 ---*/
-    //利用全局状态变量来控制灯效,每次接收控制指令后更新全局状态,然后在定时任务中根据全局状态来控制灯效显示。
-    all_light_effect_control_task(robot_status.effect_id, robot_status.color, robot_status.group_stage);
-    
     /*--- 判断击打状态变化,发送击打状态数据 ---*/
     // 检测是否发生击打,如果发生,则将击打前后的10路adc采样数据通过串口发送到调试电脑观察波形,同时将击打状态通过can发送给主控。
     Hit_Detection(&hit_event);
     handle_hit_event(&hit_event);
 
-    //OBSERVE_TASK_END(OBSERVE_COMM_TASK);
+    /*--- 控制灯效 ---*/
+    //利用全局状态变量来控制灯效,每次接收控制指令后更新全局状态,然后在定时任务中根据全局状态来控制灯效显示。
+    all_light_effect_control_task(robot_status.effect_id, robot_status.color, robot_status.group_stage);
+    
+    OBSERVE_TASK_END(OBSERVE_COMM_TASK);
 }
 
 // 初始化任务调度器
@@ -133,8 +145,8 @@ void System_Tasks_Run(void) {
 //定时器5中断回调
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     if (htim->Instance == TIM5) {
-        //OBSERVE_TASK_START(OBSERVE_HIT_LOGIC_TASK);
+        OBSERVE_TASK_START(OBSERVE_HIT_LOGIC_TASK);
         Hit_Logic_Task();
-        //OBSERVE_TASK_END(OBSERVE_HIT_LOGIC_TASK);
+        OBSERVE_TASK_END(OBSERVE_HIT_LOGIC_TASK);
     }
 }
