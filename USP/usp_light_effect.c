@@ -72,9 +72,9 @@ void UspLight_SetGroupStage(uint8_t stage)
 
 void UspLight_Update(uint8_t effect_id)
 {
-    static  IndicatorFrame_t ind = {0};
-    static ArmFrame_t arm_frame = {0};
-
+    IndicatorFrame_t ind = {0};
+    ArmFrame_t arm_frame = {0};
+    
     LightEffectId_t eff = UspLight_SelectEffect(effect_id);
 
     switch (eff) {
@@ -200,6 +200,7 @@ static void render_aiming(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
     ind->color = usp_light_current_color;
     ind->cross_on = 1;// 显示瞄准图案
     ind->ring_mask = index_to_mask(1) | index_to_mask(6) | index_to_mask(8);// 只亮第2环，第7环和第9环（1~10）
+    arm_frame->group_stage = usp_light_group_stage;
     arm_frame->main_effect = MAIN_ARM_EFFECT_FLOW;// 主灯臂显示流动箭头图案
     arm_frame->sub_effect = SUB_ARM_EFFECT_OFF;// 副灯臂熄灭
 }

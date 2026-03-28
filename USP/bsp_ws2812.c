@@ -54,34 +54,43 @@ void Buff_translate(uint8_t color_buff[],uint16_t* dma_row_ptr) //颜色数组�
 // DMA 完成回调函数
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
-    static uint8_t dma_status_flag =0;
-    // 判定是哪个定时器触发的
+    static uint8_t done_mask = 0;
+
     if (htim->Instance == TIM3) {
-        // 传输完成后立即停止 DMA
-        // 停止顺序：先停通道，如果有必要可以手动把 CCR 清零
-        HAL_TIM_PWM_Stop_DMA(htim, arm_channel_1);
-        HAL_TIM_PWM_Stop_DMA(htim, arm_channel_2);
-        // 强制清零 CCR，防止停止瞬间引脚保持高电平
-        __HAL_TIM_SET_COMPARE(htim, arm_channel_1, 0);
-        __HAL_TIM_SET_COMPARE(htim, arm_channel_2, 0);
-        dma_status_flag++;
+        if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) {
+            HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_1);
+            __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_1, 0);
+            done_mask |= (1 << 0);
+        }
+        else if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_4) {
+            HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_4);
+            __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_4, 0);
+            done_mask |= (1 << 1);
+        }
     }
     else if (htim->Instance == TIM4) {
-        // 传输完成后立即停止 DMA
-        // 停止顺序：先停通道，如果有必要可以手动把 CCR 清零
-        HAL_TIM_PWM_Stop_DMA(htim, arm_channel_3);
-        HAL_TIM_PWM_Stop_DMA(htim, arm_channel_4);
-        // 强制清零 CCR，防止停止瞬间引脚保持高电平
-        __HAL_TIM_SET_COMPARE(htim, arm_channel_3, 0);
-        __HAL_TIM_SET_COMPARE(htim, arm_channel_4, 0);
-        dma_status_flag++;
+        if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2) {
+            HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_2);
+            __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_2, 0);
+            done_mask |= (1 << 2);
+        }
+        else if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3) {
+            HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_3);
+            __HAL_TIM_SET_COMPARE(htim, TIM_CHANNEL_3, 0);
+            done_mask |= (1 << 3);
+        }
     }
-    if(dma_status_flag>=2)
-    {
-        dma_status_flag=0;
-        // 这里可以设置一个全局标志，通知主循环所有DMA传输已完成，可以安全更新下一帧数据了
+
+    // 例如主灯臂三路都发完
+    if ((done_mask & 0x07) == 0x07) {
+        done_mask &= ~0x07;
+        // 主灯臂本帧完成
     }
-}         
+
+    // 如果副灯臂也要一起算总帧完成，可改成 done_mask == 0x0F
+}     
+
+uint16_t test_delay_max = 150;
 
 //主灯臂流水灯效控制,输入RGB颜色值,根据当前组数阶段性亮起灯珠,并且让箭头图案流动起来
 void ws2812_main_arm_flow_effect(uint8_t r, uint8_t g, uint8_t b, uint8_t active_groups)
@@ -150,8 +159,8 @@ void ws2812_main_arm_flow_effect(uint8_t r, uint8_t g, uint8_t b, uint8_t active
         Buff_translate(temp_pixels, tim_pwm_dma_buff[arm_idx]);
     }
 
-    // 4. 非阻塞启动 5 路 DMA 传输
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂outside
+    for(uint16_t i=0;i<test_delay_max;i++) __NOP();; // 这里加个小延时，由于hal库问题,连续启动容易造成相位错乱,后发的通道有时会因为第一帧抖动导致异常
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[1], dma_data_len);//主灯臂middle
     HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[2], dma_data_len);//主灯臂inside
 }
@@ -169,11 +178,14 @@ void ws2812_main_arm_full_effect(uint8_t r, uint8_t g, uint8_t b)
     }
     // 将 RGB 数据转换为 PWM 码元
     Buff_translate(temp_pixels, tim_pwm_dma_buff[0]);
+   
     // 4. 非阻塞启动 4 路 DMA 传输
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂outside
+    for(uint16_t i=0;i<test_delay_max;i++) __NOP();;
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂middle
     HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂inside
 }
+
 
 //主灯臂阶段亮起矩形块控制,输入RGB颜色值和当前组数,根据当前组数阶段性亮起矩形块
 void ws2812_main_arm_stage_effect(uint8_t r, uint8_t g, uint8_t b, uint8_t active_groups)
@@ -194,8 +206,10 @@ void ws2812_main_arm_stage_effect(uint8_t r, uint8_t g, uint8_t b, uint8_t activ
     }
     // 将 RGB 数据转换为 PWM 码元
     Buff_translate(temp_pixels, tim_pwm_dma_buff[0]);
+
     // 4. 非阻塞启动 4 路 DMA 传输
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_1, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂outside
+    for(uint16_t i=0;i<test_delay_max;i++) __NOP(); 
     HAL_TIM_PWM_Start_DMA(arm_tim1, arm_channel_2, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂middle
     HAL_TIM_PWM_Start_DMA(arm_tim2, arm_channel_3, (uint32_t *)tim_pwm_dma_buff[0], dma_data_len);//主灯臂inside
 }
