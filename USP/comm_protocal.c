@@ -65,6 +65,7 @@ void can_send_hit_status(uint8_t hit_index){
 //第二个参数需要输入adc_buffers.adc_pin_map[ch]映射表
 void vofa_send_hit_status(uint8_t hit_index,uint16_t trigger_ptr, const uint16_t buffer[WAVE_BUFF_SIZE][ADC_CHANNELS])
 {
+    OBSERVE_TASK_START(OBSERVE_UART_DMA);
     // 计算起始点 (触发点前 1ms)
     int16_t start_idx = trigger_ptr - PRE_HIT_SAMPLES;
     while (start_idx < 0) start_idx += WAVE_BUFF_SIZE;
@@ -98,12 +99,11 @@ void vofa_send_hit_status(uint8_t hit_index,uint16_t trigger_ptr, const uint16_t
 
 //串口发送简易接口,发送被击打的环的索引,方便调试观察
 void uart_send_hit_status(uint8_t hit_index){
+    OBSERVE_TASK_START(OBSERVE_UART_DMA);
     comm_buffers.uart_tx_buf[0] = '\n'; 
     comm_buffers.uart_tx_buf[1] = 'S';
     comm_buffers.uart_tx_buf[2] = (char)(hit_index + '0'); // '0'~'9'
     comm_buffers.uart_tx_buf[3] = '\n';
-
-    OBSERVE_TASK_START(OBSERVE_UART_DMA);
     HAL_UART_Transmit_DMA(&huart3, comm_buffers.uart_tx_buf, sizeof(comm_buffers.uart_tx_buf));
 }
 

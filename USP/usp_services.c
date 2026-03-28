@@ -7,8 +7,8 @@
 #include "usp_light_effect.h"
 
 RobotStatus_t robot_status={
-    .color=color_red,
-    .group_stage=5,
+    .color=color_off,
+    .group_stage=0,
     .hit_index=0,
     .effect_id=0
 };
@@ -53,7 +53,6 @@ static void handle_hit_event(const HitEvent_t *event){
     if(event->pending){
         uint8_t max_index=event->hit_index;
         if(max_index<10){ // 有效击打索引范围0~9
-            UspLight_OnHit(max_index); // 更新测试状态
             // 通过 CAN 发送击打状态到主控
             can_send_hit_status(max_index); 
             // 通过 UART 发送击打状态到调试电脑
@@ -63,6 +62,7 @@ static void handle_hit_event(const HitEvent_t *event){
             else if(debug_status.adc_10_send_enable==2){
                 uart_send_hit_status(max_index); 
             }
+            UspLight_OnHit(max_index) ;
         }
     }
 }

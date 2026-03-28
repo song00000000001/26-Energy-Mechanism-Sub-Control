@@ -34,11 +34,11 @@ typedef struct {
     uint8_t  adc_pin_map[ADC_CHANNELS]; // ADC引脚到指示灯环的映射表
     uint8_t leave_debounce_count; // 离开消抖延时
 } ADCBuffers_t;
-
-static ADCBuffers_t adc_buffers={
+/*8,9,0，1,2,7,6,5,43,*/
+ADCBuffers_t adc_buffers={
     .HIT_THRESHOLD = 700,  // ADC 击打判定阈值 (根据实际压力调整)
     .HIT_CONFIRM_COUNT = 2,        // 连续N次采样超过阈值则认为击打
-    .adc_pin_map = {9, 4, 8, 7, 6, 0, 1, 2, 3,5}, // 映射表，根据实际连线调整
+    .adc_pin_map = {8, 9, 0, 1, 2, 7, 6, 5, 4,3}, // 映射表，根据实际连线调整
     .leave_debounce_count = 7, // 离开消抖延时
 };
 

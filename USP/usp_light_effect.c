@@ -199,6 +199,8 @@ static LightEffectId_t UspLight_SelectEffect(uint8_t effect_id)
         case 2: return LIGHT_EFFECT_SMALL_HIT;
         case 3: return LIGHT_EFFECT_BIG_STAGE;
         case 4: return LIGHT_EFFECT_SUCCESS;
+        case 5: return LIGHT_EFFECT_TEST_SINGLE;
+        case 6: return LIGHT_EFFECT_TEST_ACCUM;
         default: return LIGHT_EFFECT_OFF;
     }
 }
