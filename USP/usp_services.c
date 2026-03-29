@@ -10,7 +10,7 @@ RobotStatus_t robot_status={
     .color=color_red,
     .group_stage=5,
     .hit_index=0,
-    .effect_id=5
+    .effect_id=6
 };
 	
 
