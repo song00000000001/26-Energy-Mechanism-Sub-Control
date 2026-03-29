@@ -2,8 +2,8 @@
 
 debug_status_t debug_status={
     .observe_task = OBSERVE_NONE,
-    .tim5_counter = 32,
-	.adc_10_send_enable=2 // 0: 不发送, 1: 发送10路原始数据, 2: 只发送击打状态
+    .tim5_counter = 33,
+	.adc_10_send_enable=0 // 0: 不发送, 1: 发送10路原始数据, 2: 只发送击打状态
 };
 
 /*

@@ -90,7 +90,7 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
     // 如果副灯臂也要一起算总帧完成，可改成 done_mask == 0x0F
 }     
 
-uint16_t test_delay_max = 150;
+uint16_t test_delay_max = 200;
 
 //主灯臂流水灯效控制,输入RGB颜色值,根据当前组数阶段性亮起灯珠,并且让箭头图案流动起来
 void ws2812_main_arm_flow_effect(uint8_t r, uint8_t g, uint8_t b, uint8_t active_groups)
