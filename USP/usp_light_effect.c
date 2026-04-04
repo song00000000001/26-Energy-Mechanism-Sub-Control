@@ -219,7 +219,7 @@ static void render_aiming(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
     ind->color = usp_light_current_color;
     ind->cross_on = 1;// 显示瞄准图案
     ind->ring_mask = 0x000;
-    ind->ring_mask = index_to_mask(2) | index_to_mask(7) | index_to_mask(9);// 只亮第2环，第7环和第9环
+    ind->ring_mask = index_to_mask(2) | index_to_mask(6) | index_to_mask(8);// 只亮第2环，第6环和第8环
     arm_frame->group_stage = usp_light_group_stage;
     arm_frame->main_effect = MAIN_ARM_EFFECT_FLOW;// 主灯臂显示流动箭头图案
     arm_frame->sub_effect = SUB_ARM_EFFECT_OFF;// 副灯臂熄灭
@@ -230,9 +230,9 @@ static void render_small_hit(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
     ind->color = usp_light_current_color;
     ind->cross_on = 0;
     ind->ring_mask = 0x000;
-    ind->ring_mask = index_to_mask(1);   // 只亮第1环,其他全灭(1~10)
-    arm_frame->main_effect = MAIN_ARM_EFFECT_OFF;// 主灯臂熄灭
-    arm_frame->sub_effect = SUB_ARM_EFFECT_OFF;// 副灯臂熄灭
+    ind->ring_mask = index_to_mask(0);   // 只亮第0环,其他全灭
+    arm_frame->main_effect = MAIN_ARM_EFFECT_FULL;// 主灯臂全亮
+    arm_frame->sub_effect = SUB_ARM_EFFECT_FULL;// 副灯臂全亮
 }
 static void render_big_stage(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
 {
@@ -248,7 +248,7 @@ static void render_success(IndicatorFrame_t *ind,ArmFrame_t *arm_frame)
     ind->color = usp_light_current_color;
     ind->cross_on = 0;
     ind->ring_mask = 0x000;
-    ind->ring_mask = index_to_mask(8);   // 只亮第8环
+    ind->ring_mask = index_to_mask(7);   // 只亮第8环
     arm_frame->main_effect = MAIN_ARM_EFFECT_FULL;// 主灯臂全亮
     arm_frame->sub_effect = SUB_ARM_EFFECT_FULL;// 副灯臂全亮
 }
