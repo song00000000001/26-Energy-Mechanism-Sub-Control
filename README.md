@@ -1,6 +1,6 @@
-# 能量机构分控 (Energy Mechanism Sub-Controller)
+# 能量机关分控 (Energy Mechanism Sub-Controller)
 
-基于 **STM32F103RCT6** 的 RoboMaster 能量机构分控程序。负责击打检测、灯效控制以及与主控的 CAN 通信。
+基于 **STM32F103RCT6** 的 RoboMaster 能量机关分控程序。负责击打检测、灯效控制以及与主控的 CAN 通信。
 
 ---
 
