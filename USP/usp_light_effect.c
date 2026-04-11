@@ -144,12 +144,14 @@ static void Indicator_Apply(IndicatorFrame_t *ind)
     }
 }
 
+uint8_t red_lightness=80;
+
 static void WS2812_ApplyFrame(ArmFrame_t *arm_frame)
 {
     uint8_t r = 0, g = 0, b = 0;
     switch (usp_light_current_color) {
-        case color_red: r = 255; break;
-        case color_blue: b = 255; break;
+        case color_red: r = red_lightness; break;
+        case color_blue: b = red_lightness; break;
         case color_off:
         default: break;
     }
@@ -170,7 +172,12 @@ static void WS2812_ApplyFrame(ArmFrame_t *arm_frame)
     default:
         break;
     }
-
+    switch (usp_light_current_color) {
+        case color_red: r = 255; break;
+        case color_blue: b = 255; break;
+        case color_off:
+        default: break;
+    }
     switch (arm_frame->sub_effect)
     {   
     case SUB_ARM_EFFECT_STAGE:
