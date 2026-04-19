@@ -98,7 +98,7 @@ uint16_t test_delay_max = 1600;//168Mhz主频，周期0.0595us，一个帧1.25us
 void ws2812_main_arm_flow_effect(uint8_t r, uint8_t g, uint8_t b, uint8_t active_groups)
 {
     static uint8_t ARROW_STEP_LEN = 2;    
-    static uint8_t ARROW_GAP = 6;        
+    static uint8_t ARROW_GAP = 1;        
     static uint16_t g_flow_offset = 1; 
 
     //刚发现箭头无需跟随组数变化，这里直接赋值
