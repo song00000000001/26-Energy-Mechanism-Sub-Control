@@ -31,8 +31,10 @@ typedef enum
 }ligntarm_name_enum;
 
 // 4路PWM DMA数据缓存: [0,1,2]主灯臂, [3]左右灯臂
-static uint16_t tim_pwm_dma_buff[WS2812_ARM_COUNT][dma_data_len] = {0};//PWM DMA数据缓存
-static uint8_t temp_pixels[WS2312_LED_NUM * 3] = {0};//由于大量重复使用,单独拿出来作为全局变量,避免频繁在栈上分配过大的数组
+// aligned(4): STM32F103 DMA 在 AHB 总线上以 32 位事务效率最高，4 字节对齐减少总线仲裁开销
+// STM32F103 无 CCM，static 全局数组已位于 SRAM；去掉 = {0} 让其落入 .bss 节省 ~8.5 KB Flash
+static uint16_t tim_pwm_dma_buff[WS2812_ARM_COUNT][dma_data_len] __attribute__((aligned(4)));
+static uint8_t temp_pixels[WS2312_LED_NUM * 3];
 
 void Buff_translate(uint8_t color_buff[],uint16_t* dma_row_ptr) //颜色数组转换为码元数组
 {   
