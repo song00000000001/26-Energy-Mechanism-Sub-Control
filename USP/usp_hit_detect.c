@@ -40,10 +40,10 @@ typedef struct {
 } ADCBuffers_t;
 /*8,9,0，1,2,7,6,5,43,*/
 ADCBuffers_t adc_buffers={
-    .HIT_THRESHOLD = 700,  // ADC 击打判定阈值 (根据实际压力调整)
-    .HIT_CONFIRM_COUNT = 2,        // 连续N次采样超过阈值则认为击打
+    .HIT_THRESHOLD = 150,  // ADC 击打判定阈值 (根据实际压力调整)
+    .HIT_CONFIRM_COUNT = 1,        // 连续N次采样超过阈值则认为击打
     .adc_pin_map = {8, 9, 0, 1, 2, 7, 6, 5, 4,3}, // 映射表，根据实际连线调整
-    .leave_debounce_count = 7, // 离开消抖延时
+    .leave_debounce_count = 1, // 离开消抖延时
 };
 
 inline uint8_t Hit_Map_Ring_To_AdcChannel(uint8_t hit_index){
@@ -128,6 +128,7 @@ void Hit_Logic_Task() {
                 for(int i = 0; i < ADC_CHANNELS; i++) {
                     // 若有击打计数器累计超过阈值的，认为有击中情况。
                     if (adc_raw[adc_buffers.adc_pin_map[i]] > adc_buffers.HIT_THRESHOLD) {
+                        adc_buffers.hit_counters[i] += adc_raw[adc_buffers.adc_pin_map[i]];// 超过阈值，记录adc值累加到计数器
                         hit_state=record_hit;
                         leave_count = 0;
                         // 触发点记录：当前位置即为触发时刻
