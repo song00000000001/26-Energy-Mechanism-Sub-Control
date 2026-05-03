@@ -28,7 +28,7 @@ song
 // ADC DMA 目标缓冲区：独立声明以便精确控制对齐
 // STM32F103 无 CCM，DMA 只能访问 SRAM；4 字节对齐保证 AHB 总线按字访问效率最优
 // 注：STM32F103 Cortex-M3 无数据 Cache，无需 SCB_CleanDCache 操作
-static uint16_t adc_raw[ADC_CHANNELS] __attribute__((aligned(4)));
+uint16_t adc_raw[ADC_CHANNELS] __attribute__((aligned(4)));
 
 //击打计数器与检测配置结构体
 typedef struct {
@@ -36,14 +36,14 @@ typedef struct {
     uint16_t HIT_THRESHOLD;  // ADC 击打判定阈值 (根据实际压力调整)
     uint16_t HIT_CONFIRM_COUNT;        // 连续N次采样超过阈值则认为击打
     uint8_t  adc_pin_map[ADC_CHANNELS]; // ADC引脚到指示灯环的映射表
-    uint8_t leave_debounce_count; // 离开消抖延时
+    uint16_t leave_debounce_count; // 离开消抖延时
 } ADCBuffers_t;
 /*8,9,0，1,2,7,6,5,43,*/
 ADCBuffers_t adc_buffers={
-    .HIT_THRESHOLD = 150,  // ADC 击打判定阈值 (根据实际压力调整)
-    .HIT_CONFIRM_COUNT = 1,        // 连续N次采样超过阈值则认为击打
+    .HIT_THRESHOLD = 200,  // ADC 击打判定阈值 (根据实际压力调整)
+    .HIT_CONFIRM_COUNT = 2,        // 连续N次采样超过阈值则认为击打
     .adc_pin_map = {8, 9, 0, 1, 2, 7, 6, 5, 4,3}, // 映射表，根据实际连线调整
-    .leave_debounce_count = 1, // 离开消抖延时
+    .leave_debounce_count = 3, // 离开消抖延时
 };
 
 inline uint8_t Hit_Map_Ring_To_AdcChannel(uint8_t hit_index){
@@ -71,7 +71,6 @@ void Hit_Detection(HitEvent_t *event)
         return;
         
     event->trigger_ptr = wave_capture.trigger_ptr;
-
     if (wave_capture.state == WAVE_READY_TO_SEND) {
         // 重置捕获状态机
         wave_capture.state = WAVE_IDLE;
@@ -109,7 +108,7 @@ void Hit_Detection(HitEvent_t *event)
 
 // 击打判定逻辑 (31us检查一次)
 void Hit_Logic_Task() {
-    static uint8_t leave_count = 0; // 离开消抖计数
+    static uint16_t leave_count = 0; // 离开消抖计数
     static bool is_still_in_hit=false; // 是否仍在击打中
     if (wave_capture.state != WAVE_READY_TO_SEND) {
         // 将当前的10路数据拷贝进环形缓冲
@@ -125,7 +124,7 @@ void Hit_Logic_Task() {
         {
             case before_hit:
                 //如果有一个超过阈值,就跳转到记录击打状态
-                for(int i = 0; i < ADC_CHANNELS; i++) {
+                for(int i = 1; i < ADC_CHANNELS; i++) {
                     // 若有击打计数器累计超过阈值的，认为有击中情况。
                     if (adc_raw[adc_buffers.adc_pin_map[i]] > adc_buffers.HIT_THRESHOLD) {
                         adc_buffers.hit_counters[i] += adc_raw[adc_buffers.adc_pin_map[i]];// 超过阈值，记录adc值累加到计数器
@@ -146,7 +145,7 @@ void Hit_Logic_Task() {
             {
                 //记录击打数据，如果10个都没超过阈值，说明击打结束，跳转到击打后状态
                 is_still_in_hit=false;
-                for(int i = 0; i < ADC_CHANNELS; i++) {
+                for(int i = 1; i < ADC_CHANNELS; i++) {
                     if (adc_raw[adc_buffers.adc_pin_map[i]] > adc_buffers.HIT_THRESHOLD)  {
                         adc_buffers.hit_counters[i] += adc_raw[adc_buffers.adc_pin_map[i]];// 超过阈值，记录adc值累加到计数器
                         is_still_in_hit=true;
