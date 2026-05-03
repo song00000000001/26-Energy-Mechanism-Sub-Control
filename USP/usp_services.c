@@ -5,6 +5,7 @@
 #include "comm_protocal.h"
 #include "tim.h"
 #include "usp_light_effect.h"
+#include "stdbool.h"
 
 RobotStatus_t robot_status={
     .color=color_red,
@@ -13,15 +14,26 @@ RobotStatus_t robot_status={
     .effect_id=5
 };
 	
-
+void WS2812_Update_Task(void);
 
 // usp_services.c
 Task_t SystemTasks[] = {
-    {Comm_Task, 100, 0},   
-    //{WS2812_Update_Task, 100, 0}      
+    {Comm_Task, 400, 0},   
+    {WS2812_Update_Task, 100, 0}      
 };
 
+bool is_target(uint8_t effect_id){
+    static uint8_t last_effect_id = 0;
+    if(effect_id != last_effect_id){
+        if((effect_id == 1)){//在usp_light_effect.c中，aim灯效为1
+            return true;
+        }
+    }
+    last_effect_id = effect_id;
+    return false;
+}
 
+bool activate_can_send_signal=false;
 
 //总灯效控制任务,只需要输入灯效id，颜色和组数阶段，就能控制对应的灯效了,不需要再区分主副灯臂了,因为主控直接发送的就是最终的灯效状态了
 void all_light_effect_control_task(uint8_t effect_id, uint8_t color_id, uint8_t active_groups)
@@ -54,7 +66,9 @@ static void handle_hit_event(const HitEvent_t *event){
         uint8_t max_index=event->hit_index;
         if(max_index<10){ // 有效击打索引范围0~9
             // 通过 CAN 发送击打状态到主控
-            can_send_hit_status(max_index); 
+            if(is_target(robot_status.effect_id)){
+                activate_can_send_signal=true;
+            }
             // 通过 UART 发送击打状态到调试电脑
             if(debug_status.adc_10_send_enable==1){
                 vofa_send_hit_status(max_index,event->trigger_ptr,Hit_GetWaveCapture()->buffer); // 通过 VOFA+ 发送击打状态
@@ -78,19 +92,26 @@ void Comm_Task(void)
     __HAL_TIM_SET_AUTORELOAD(&htim5, debug_status.tim5_counter); 
 
     /*--- 接收控制指令数据 ---*/
-    // can接收
-    can_receive_process(&robot_status.effect_id, &robot_status.color, &robot_status.group_stage);
 
     /*--- 判断击打状态变化,发送击打状态数据 ---*/
     // 检测是否发生击打,如果发生,则将击打前后的10路adc采样数据通过串口发送到调试电脑观察波形,同时将击打状态通过can发送给主控。
+    if(activate_can_send_signal&&robot_status.effect_id==1){
+        can_send_hit_status(robot_status.hit_index);
+        activate_can_send_signal=false;
+    }
     Hit_Detection(&hit_event);
     handle_hit_event(&hit_event);
 
-    /*--- 控制灯效 ---*/
+    OBSERVE_TASK_END(OBSERVE_COMM_TASK);
+}
+
+void WS2812_Update_Task(void)
+{
+    // can接收
+    can_receive_process(&robot_status.effect_id, &robot_status.color, &robot_status.group_stage);
+     /*--- 控制灯效 ---*/
     //利用全局状态变量来控制灯效,每次接收控制指令后更新全局状态,然后在定时任务中根据全局状态来控制灯效显示。
     all_light_effect_control_task(robot_status.effect_id, robot_status.color, robot_status.group_stage);
-    
-    OBSERVE_TASK_END(OBSERVE_COMM_TASK);
 }
 
 // 初始化任务调度器
