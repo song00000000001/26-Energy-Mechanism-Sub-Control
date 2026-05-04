@@ -28,7 +28,7 @@ song
 // ADC DMA 目标缓冲区：独立声明以便精确控制对齐
 // STM32F103 无 CCM，DMA 只能访问 SRAM；4 字节对齐保证 AHB 总线按字访问效率最优
 // 注：STM32F103 Cortex-M3 无数据 Cache，无需 SCB_CleanDCache 操作
-static uint16_t adc_raw[ADC_CHANNELS] __attribute__((aligned(4)));
+uint16_t adc_raw[ADC_CHANNELS] __attribute__((aligned(4)));
 
 //击打计数器与检测配置结构体
 typedef struct {
@@ -40,10 +40,10 @@ typedef struct {
 } ADCBuffers_t;
 /*8,9,0，1,2,7,6,5,43,*/
 ADCBuffers_t adc_buffers={
-    .HIT_THRESHOLD = 700,  // ADC 击打判定阈值 (根据实际压力调整)
+    .HIT_THRESHOLD = 200,  // ADC 击打判定阈值 (根据实际压力调整)
     .HIT_CONFIRM_COUNT = 2,        // 连续N次采样超过阈值则认为击打
     .adc_pin_map = {8, 9, 0, 1, 2, 7, 6, 5, 4,3}, // 映射表，根据实际连线调整
-    .leave_debounce_count = 7, // 离开消抖延时
+    .leave_debounce_count = 3, // 离开消抖延时
 };
 
 inline uint8_t Hit_Map_Ring_To_AdcChannel(uint8_t hit_index){
