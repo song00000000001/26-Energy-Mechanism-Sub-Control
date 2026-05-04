@@ -15,8 +15,8 @@
 #define WS2312_1bit 50
 
 #define arm_tim1 &htim3
-#define arm_channel_1 TIM_CHANNEL_1
-#define arm_channel_2 TIM_CHANNEL_4
+#define arm_channel_2 TIM_CHANNEL_1
+#define arm_channel_1 TIM_CHANNEL_4
 #define arm_tim2 &htim4
 #define arm_channel_3 TIM_CHANNEL_2 
 #define arm_channel_4 TIM_CHANNEL_3 

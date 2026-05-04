@@ -7,18 +7,19 @@ typedef struct {
 } Indicator_LED_t;
 
 // 10个指示环的GPIO端口和引脚配置，
-
+//0,2,5,4,3,1
 static Indicator_LED_t Ring_LEDs[10] = {
-    {GPIOA, GPIO_PIN_8},//1环
-    {GPIOC, GPIO_PIN_7},
-    {GPIOB, GPIO_PIN_12},
-    {GPIOB, GPIO_PIN_13},
-    {GPIOB, GPIO_PIN_14},
-    {GPIOB, GPIO_PIN_15},
-    {GPIOB, GPIO_PIN_11},
-    {GPIOB, GPIO_PIN_10},
-    {GPIOC, GPIO_PIN_5},
-    {GPIOC, GPIO_PIN_4}
+    {GPIOA, GPIO_PIN_8},//0环
+	{GPIOB, GPIO_PIN_15},//1
+    {GPIOC, GPIO_PIN_7},//2
+	{GPIOB, GPIO_PIN_14},//3
+   
+    {GPIOB, GPIO_PIN_13},//4
+ {GPIOB, GPIO_PIN_12},//5
+    {GPIOB, GPIO_PIN_11},//6
+    {GPIOB, GPIO_PIN_10},//7
+    {GPIOC, GPIO_PIN_5},//8
+    {GPIOC, GPIO_PIN_4}//9
 };
 
 //底层端口宏,用于控制灯板颜色和图案

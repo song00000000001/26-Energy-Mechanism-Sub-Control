@@ -80,7 +80,9 @@ void Comm_Task(void)
     /*--- 接收控制指令数据 ---*/
     // can接收
     can_receive_process(&robot_status.effect_id, &robot_status.color, &robot_status.group_stage);
-
+    //static uint8_t max_index=0;
+    //if(max_index>9) max_index=0;
+    //can_send_hit_status(max_index++); // 测试用,模拟击打状态发送
     /*--- 判断击打状态变化,发送击打状态数据 ---*/
     // 检测是否发生击打,如果发生,则将击打前后的10路adc采样数据通过串口发送到调试电脑观察波形,同时将击打状态通过can发送给主控。
     Hit_Detection(&hit_event);
@@ -95,14 +97,15 @@ void Comm_Task(void)
 
 // 初始化任务调度器
 void System_Tasks_Init(void) {
-    HAL_TIM_Base_Start_IT(&htim5);
-    for (int i = 0; i < sizeof(SystemTasks)/sizeof(Task_t); i++) {
-        SystemTasks[i].last_run = HAL_GetTick();
-    }
     Hit_Detection_Init(); // 初始化击打检测模块
     user_can_init();
     vofa_frame_tail_init(); // 初始化 VOFA+ 帧尾
     // HAL_UART_Receive_IT(&huart3, comm_buffers.uart_rx_buf, 4);    // 启动串口中断接收 (huart3)
+	HAL_Delay(100); // 确保系统稳定后再启动定时器，避免过早进入中断导致问题
+	HAL_TIM_Base_Start_IT(&htim5);
+    for (int i = 0; i < sizeof(SystemTasks)/sizeof(Task_t); i++) {
+        SystemTasks[i].last_run = HAL_GetTick();
+    }
 }
 
 
