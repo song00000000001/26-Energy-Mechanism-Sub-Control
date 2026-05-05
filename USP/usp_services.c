@@ -95,14 +95,16 @@ void Comm_Task(void)
 
 // 初始化任务调度器
 void System_Tasks_Init(void) {
-    HAL_TIM_Base_Start_IT(&htim5);
-    for (int i = 0; i < sizeof(SystemTasks)/sizeof(Task_t); i++) {
-        SystemTasks[i].last_run = HAL_GetTick();
-    }
+   
     Hit_Detection_Init(); // 初始化击打检测模块
     user_can_init();
     vofa_frame_tail_init(); // 初始化 VOFA+ 帧尾
     // HAL_UART_Receive_IT(&huart3, comm_buffers.uart_rx_buf, 4);    // 启动串口中断接收 (huart3)
+    HAL_Delay(100);
+    for (int i = 0; i < sizeof(SystemTasks)/sizeof(Task_t); i++) {
+        SystemTasks[i].last_run = HAL_GetTick();
+    }
+	HAL_TIM_Base_Start_IT(&htim5);
 }
 
 
