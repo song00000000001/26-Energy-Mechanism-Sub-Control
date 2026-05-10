@@ -3,7 +3,7 @@
 #include "main.h"
 
 /* --- 机器人配置宏 --- */
-#define sub_ctrl_id 0x01  // 分控标识位
+#define sub_ctrl_id 0x04  // 分控标识位
 
 /*
 0x 210=33    0010 0001 00000000
