@@ -40,10 +40,10 @@ typedef struct {
 } ADCBuffers_t;
 /*8,9,0，1,2,7,6,5,43,*/
 ADCBuffers_t adc_buffers={
-    .HIT_THRESHOLD = 250,  // ADC 击打判定阈值 (根据实际压力调整)
+    .HIT_THRESHOLD = 280,  // ADC 击打判定阈值 (根据实际压力调整)
     .HIT_CONFIRM_COUNT = 2,        // 连续N次采样超过阈值则认为击打
     .adc_pin_map = {8, 9, 0, 1, 2, 7, 6, 5, 4,3}, // 映射表，根据实际连线调整
-    .leave_debounce_count = 3, // 离开消抖延时
+    .leave_debounce_count = 6, // 离开消抖延时
 };
 
 inline uint8_t Hit_Map_Ring_To_AdcChannel(uint8_t hit_index){
