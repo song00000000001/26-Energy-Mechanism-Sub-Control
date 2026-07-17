@@ -112,6 +112,7 @@ void WS2812_Update_Task(void)
      /*--- 控制灯效 ---*/
     //利用全局状态变量来控制灯效,每次接收控制指令后更新全局状态,然后在定时任务中根据全局状态来控制灯效显示。
     all_light_effect_control_task(robot_status.effect_id, robot_status.color, robot_status.group_stage);
+    
 }
 
 // 初始化任务调度器
